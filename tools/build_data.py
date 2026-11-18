@@ -71,7 +71,7 @@ def text(h):
     h = re.sub(r"<\s*(br|/p|/li|/div)\s*/?>", "\n", h, flags=re.I)
     h = re.sub(r"<li[^>]*>", "- ", h, flags=re.I)
     h = re.sub(r"<[^>]+>", "", h)
-    h = html.unescape(h).replace("�", "'")
+    h = html.unescape(h).replace("\ufffd", "'")
     h = ZERO_WIDTH.sub("", h)
     h = re.sub(r"[ \t ]+", " ", h)
     h = re.sub(r"\n\s*\n+", "\n\n", h)
@@ -120,7 +120,7 @@ def build_sessions(raw, saved_keys):
         building, room = ([x.strip() for x in loc.split("|", 1)] if "|" in loc else (loc, ""))
         o = {
             "k": key, "c": code, "id": s["sessionId"],
-            "t": ZERO_WIDTH.sub("", html.unescape(s.get("title") or "").replace("�", "'")).strip(),
+            "t": ZERO_WIDTH.sub("", html.unescape(s.get("title") or "").replace("\ufffd", "'")).strip(),
             "d": text(s.get("description")),
             "ty": (s.get("sessionType") or {}).get("displayValue") or "Other",
             "b": building, "r": room,
@@ -244,15 +244,25 @@ def main():
     out = {
         "event": "Microsoft Ignite 2026",
         "tz": "America/Los_Angeles",
-        "fetched": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "fetched": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),  # when the data last changed
         "sessions": sessions,
         "speakers": speakers,
         "alias": alias,
     }
+    out_path = Path(a.out)
+    if out_path.exists():
+        try:
+            prev = json.loads(out_path.read_text(encoding="utf-8"))
+            same = {k: v for k, v in prev.items() if k != "fetched"} == {k: v for k, v in out.items() if k != "fetched"}
+        except ValueError:
+            same = False
+        if same:
+            print(f"No changes since {prev.get('fetched')}; {a.out} left as is.")
+            return
     body = json.dumps(out, separators=(",", ":"), ensure_ascii=False)
-    if "�" in body:
+    if "\ufffd" in body:
         sys.exit("Output still contains U+FFFD replacement characters; check the feed.")
-    Path(a.out).write_text(body, encoding="utf-8")
+    out_path.write_text(body, encoding="utf-8")
     all_keys = dict(saved_keys)
     all_keys.update({iid[len("en-US-"):]: k for iid, k in instance_key.items()})
     key_file.write_text(json.dumps(all_keys, indent=0, sort_keys=True), encoding="utf-8")

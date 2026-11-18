@@ -258,6 +258,9 @@ main{flex:1;min-height:0;position:relative}
 .blk.cx .bt,.card.cx .ct{text-decoration:line-through;text-decoration-thickness:1.5px;opacity:.75}
 .blk.cx{outline:1.5px solid color-mix(in srgb,var(--now) 70%,transparent);outline-offset:-2px}
 .kc-cancelled{--kc:var(--now)}
+.toast.warn{border-color:var(--now);border-left-color:var(--now)}
+.toast.warn .tt{color:var(--now)}
+.card.chg{border-left-color:var(--now)}
 code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:0 4px}
 .loading{display:grid;place-items:center;height:100%;color:var(--muted);font-family:var(--f-mono);font-size:12px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -365,9 +368,9 @@ const byTime=(a,b)=>(a.day||"z").localeCompare(b.day||"z")||(a.s||0)-(b.s||0)||a
 const FKEYS=["ty","kd","tp","lv","au","b","dl","tg","rec","my","tt"];
 const ui=(function(){
   const raw=LS("ig-ui")||{};
-  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,f:{}};
+  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,alerts:true,f:{}};
   ["view","day","q"].forEach(k=>{if(typeof raw[k]==="string")u[k]=raw[k]});
-  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
+  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys","alerts"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
   if([5,10,15,30].includes(raw.remLead))u.remLead=raw.remLead;
   if(raw.zv===3&&ZOOM.includes(raw.ppm))u.ppm=raw.ppm;
   const f=raw.f&&typeof raw.f==="object"?raw.f:{};
@@ -695,7 +698,7 @@ function renderMine(){
   const el=$("#minev"),n=nowPT();
   const starred=[...my.stars].map(k=>byKey.get(k)).filter(Boolean).sort(byTime);
   const conf=overlapMap(starred);
-  let html=`<div class="list">${reminderCard()}<div class="actions" style="margin-top:8px"><button class="btn" data-import="1"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Import from the Microsoft app</button></div>`;
+  let html=`<div class="list">${reminderCard()}${changesHTML()}<div class="actions" style="margin-top:8px"><button class="btn" data-import="1"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Import from the Microsoft app</button></div>`;
   html+=`<div class="sec">Starred<small>${starred.length}</small></div>`;
   if(!starred.length)html+=`<p class="hint">Tap the star on any session to add it here, or import the sessions you already picked in the Microsoft Events app. Overlapping picks get flagged.</p>`;
   let cur=null;
@@ -721,10 +724,11 @@ const notified=(()=>{const v=LS("ig-notified");return v&&typeof v==="object"?v:{
 function reminderCard(){
   const perm=sysSupported?Notification.permission:"unsupported";
   return `<div class="remcard"><div class="sec" style="margin:4px 0 2px">Reminders</div>
+  <label class="chk"><input type="checkbox" id="alerton" ${ui.alerts?"checked":""}> Alert me when a starred session is cancelled, moves or changes room</label>
   <label class="chk"><input type="checkbox" id="remon" ${ui.rem?"checked":""}> Remind me before starred sessions</label>
   <label class="chk">Remind me <select id="remlead" aria-label="How long before">${[5,10,15,30].map(m=>`<option value="${m}" ${ui.remLead===m?"selected":""}>${m} minutes</option>`).join("")}</select> before</label>
   ${sysSupported?`<label class="chk"><input type="checkbox" id="remsys" ${ui.remSys&&perm==="granted"?"checked":""} ${perm==="denied"?"disabled":""}> Also show system notifications${perm==="denied"?" (blocked in your browser settings)":""}</label>`:""}
-  <p class="hint" style="margin:0">Reminders show up while this page is open in a tab. Phones pause background tabs, so for alerts with the page closed, add your starred sessions to your calendar.</p>
+  <p class="hint" style="margin:0">Alerts and reminders show up while this page is open in a tab; the session data is checked for updates every 15 minutes. Phones pause background tabs, so for alerts with the page closed, add your starred sessions to your calendar.</p>
   <div class="actions">${IN_CLAUDE
     ?`<button class="btn" id="copycodes">Copy starred codes</button><a class="btn" href="${GH_URL}" target="_blank" rel="noopener">${ICON.ext}Open the GitHub version</a>`
     :`<button class="btn" id="icsbtn">Add starred sessions to my calendar</button>`}</div>
@@ -743,16 +747,52 @@ function checkReminders(n){
   });
   if(changed)LS("ig-notified",notified);
 }
+// One banner in the page, plus a system notification when the person turned those on.
+function notify({head,title,meta,k,tag,warn}){
+  const t=document.createElement("div");t.className="toast"+(warn?" warn":"");t.setAttribute("role","alert");
+  t.innerHTML=`<div class="tt">${esc(head)}</div><div class="tb">${esc(title)}</div>${meta?`<div class="tm">${esc(meta)}</div>`:""}<div class="actions">${k?`<button class="btn primary" data-k="${esc(k)}" data-dismiss="1">Open</button>`:""}<button class="btn" data-dismiss="1">Dismiss</button></div>`;
+  $("#toasts").appendChild(t);
+  if(ui.remSys&&sysSupported&&Notification.permission==="granted"){
+    const opts={body:[title,meta].filter(Boolean).join("\n"),tag:"ig-"+tag,data:{url:location.href.split("#")[0]+"#mine"}};
+    try{if(swReg&&swReg.showNotification)swReg.showNotification(head,opts);else new Notification(head,opts)}catch(e){}
+  }
+}
 function fireReminder(s,until){
   const when=until<=0?"Starting now":`Starts in ${until} min`;
   const where=[shortB(s.b),s.r].filter(Boolean).join(", ")||"Online";
-  const t=document.createElement("div");t.className="toast";t.setAttribute("role","alert");
-  t.innerHTML=`<div class="tt">${esc(when)} · ${fmtMin(s.s)}</div><div class="tb">${esc(s.t)}</div><div class="tm">${esc(s.c)} · ${esc(where)}</div><div class="actions"><button class="btn primary" data-k="${esc(s.k)}" data-dismiss="1">Open</button><button class="btn" data-dismiss="1">Dismiss</button></div>`;
-  $("#toasts").appendChild(t);
-  if(ui.remSys&&sysSupported&&Notification.permission==="granted"){
-    const opts={body:`${s.t}\n${where}`,tag:"ig-"+s.k,data:{url:location.href.split("#")[0]+"#mine"}};
-    try{if(swReg&&swReg.showNotification)swReg.showNotification(`${when}: ${s.c}`,opts);else new Notification(`${when}: ${s.c}`,opts)}catch(e){}
-  }
+  notify({head:`${when} · ${fmtMin(s.s)}`,title:s.t,meta:`${s.c} · ${where}`,k:s.k,tag:"rem-"+s.k});
+}
+// Schedule changes: remember what each starred session looked like, and flag cancellations, moves and room changes.
+const seen=(()=>{const v=LS("ig-seen");return v&&typeof v==="object"?v:{}})();
+let changes=(()=>{const v=LS("ig-changes");return Array.isArray(v)?v.filter(x=>x&&typeof x.what==="string"):[]})();
+const snapOf=s=>({t:s.t,day:s.day||"",s:s.s==null?null:s.s,loc:[s.b,s.r].filter(Boolean).join(", "),cx:!!s.cancelled});
+function detectChanges(){
+  if(!DATA)return;
+  const found=[];let dirty=false;
+  my.stars.forEach(k=>{
+    const cur=byKey.get(k),prev=seen[k];
+    if(!prev){if(cur){seen[k]=snapOf(cur);dirty=true}return}
+    if(!cur){if(!prev.gone){prev.gone=true;dirty=true;found.push({k,c:k.replace(/-\d+$/,""),t:prev.t,what:"No longer in Microsoft's catalog."})}return}
+    const now=snapOf(cur),msgs=[];
+    if(now.cx&&!prev.cx)msgs.push("Cancelled.");
+    if(now.day!==prev.day||now.s!==prev.s)msgs.push(now.day?`Moved to ${dayLabel(now.day).long}, ${fmtMin(now.s)}${prev.day?` (was ${dayLabel(prev.day).w} ${fmtMin(prev.s)})`:""}.`:"Moved to on demand.");
+    if(now.loc!==prev.loc&&now.loc&&prev.loc)msgs.push(`Room changed to ${now.loc} (was ${prev.loc}).`);
+    if(msgs.length)found.push({k,c:cur.c,t:cur.t,what:msgs.join(" ")});
+    if(JSON.stringify(now)!==JSON.stringify({t:prev.t,day:prev.day,s:prev.s,loc:prev.loc,cx:prev.cx})){seen[k]=now;dirty=true}
+  });
+  Object.keys(seen).forEach(k=>{if(!my.stars.has(k)){delete seen[k];dirty=true}});
+  if(dirty)LS("ig-seen",seen);
+  if(!found.length)return;
+  const at=new Date().toISOString();
+  found.forEach(f=>{changes.unshift(Object.assign({at},f));if(ui.alerts)notify({head:"Change to your schedule",title:`${f.c}: ${f.t}`,meta:f.what,k:byKey.has(f.k)?f.k:null,tag:"chg-"+f.k,warn:true})});
+  changes=changes.slice(0,30);LS("ig-changes",changes);
+  if(ui.view==="mine")softRender();
+}
+function changesHTML(){
+  if(!changes.length)return "";
+  const ago=iso=>{const m=Math.round((Date.now()-Date.parse(iso))/60000);return m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":Math.round(m/1440)+" d ago"};
+  return `<div class="sec">Schedule changes<small>${changes.length}</small><button class="tog" id="clrchg" style="margin-left:auto">Clear</button></div>`
+    +changes.map(c=>`<div class="card chg">${byKey.has(c.k)?`<button class="main" data-k="${esc(c.k)}">`:`<div class="main">`}<span class="ct">${esc(c.c)}: ${esc(c.t)}</span><span class="warn">${esc(c.what)}</span><span class="cm">Noticed ${esc(ago(c.at))}</span>${byKey.has(c.k)?"</button>":"</div>"}</div>`).join("");
 }
 async function ensureSW(){
   if(swReg||!("serviceWorker" in navigator))return swReg;
@@ -809,6 +849,7 @@ document.addEventListener("change",e=>{
   const t=e.target;
   if(t.id==="remon"){ui.rem=t.checked;saveUI();if(ui.rem){checkReminders(nowPT());remStatus(`Reminders on: ${ui.remLead} minutes before each starred session while this page is open.`)}else remStatus("Reminders off.")}
   if(t.id==="remlead"){ui.remLead=+t.value;saveUI();checkReminders(nowPT())}
+  if(t.id==="alerton"){ui.alerts=t.checked;saveUI();remStatus(ui.alerts?"Change alerts on.":"Change alerts off. Changes still appear in the Schedule changes list.")}
   if(t.id==="remsys")setSys(t.checked);
 });
 
@@ -819,6 +860,7 @@ function render(opts){
   computeTags();
   ui.f.my=ui.f.my.filter(id=>tagById(id));
   M=SES.filter(s=>matches(s,n));
+  detectChanges();
   renderChrome(n);
   const pane=currentPane(),keep=!opts||opts.keepScroll!==false;
   const el=$("#"+pane),y=el.scrollTop;
@@ -868,6 +910,7 @@ function closeSheet(){
   const s=openSheet;openSheet=null;
   if(s.onClose)s.onClose();
   $("#sheetroot").innerHTML="";
+  if(pendingData){const d=pendingData;pendingData=null;applyData(d)}
   // Prefer a match outside the pinned My schedule row so focus lands where the person was, and never scroll to it.
   const all=s.returnTo?[...document.querySelectorAll(s.returnTo)]:[];
   const t=all.find(x=>!x.closest(".pinrow"))||all[0];
@@ -1234,6 +1277,7 @@ document.addEventListener("click",e=>{
     case "impstar":starImported();return;
     case "icsbtn":downloadICS();return;
     case "copycodes":copyCodes();return;
+    case "clrchg":changes=[];LS("ig-changes",changes);render();return;
   }
 });
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&openSheet)closeSheet()});
@@ -1369,6 +1413,7 @@ const store=(function(){
 
 // ================= boot =================
 function prep(d){
+  byKey.clear();byCode.clear();byId.clear();SPK.clear();lineCache.clear();
   DATA=d;ALIAS=d.alias||{};
   d.speakers.forEach(p=>{p.hay=(p.n+" "+p.j+" "+p.co).toLowerCase();SPK.set(p.id,p)});
   d.sessions.forEach(s=>{
@@ -1399,10 +1444,27 @@ function prep(d){
   tagsChanged();
   if(normFollow())store.prefsChanged();
   const upd=new Date(d.fetched);
-  $("#evsub").textContent=`${SES.length} sessions, times in Pacific. Catalog pulled ${isNaN(upd)?"recently":upd.toLocaleString("en-US",{timeZone:TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})+" PT"}`;
+  $("#evsub").textContent=`${SES.length} sessions, times in Pacific. Catalog updated ${isNaN(upd)?"recently":upd.toLocaleString("en-US",{timeZone:TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})+" PT"}`;
   const ld=$("#loading");if(ld)ld.remove();
   $("#q").value=ui.q||"";
 }
+// Check for newer session data while the page is open (the GitHub version is refreshed every 30 minutes).
+let lastDataCheck=Date.now(),pendingData=null;
+function applyData(d){prep(d);render()}
+async function refreshData(force){
+  if(!DATA||(!force&&Date.now()-lastDataCheck<10*60000))return;
+  lastDataCheck=Date.now();
+  try{
+    const r=await fetch("data.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;
+    const d=await r.json();
+    if(!d||!Array.isArray(d.sessions)||d.fetched===DATA.fetched)return;
+    if(openSheet||isInput(document.activeElement)){pendingData=d;return}
+    applyData(d);
+  }catch(e){}
+}
+window.__igRefresh=()=>refreshData(true);
+setInterval(()=>refreshData(false),15*60000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)refreshData(false)});
 store.init().then(()=>{if(DATA)softRender()});
 initSample();
 fetch("data.json").then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(d=>{
