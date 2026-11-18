@@ -539,7 +539,7 @@ function roomSort(a,b){
 const statusClasses=(s,n)=>(isPast(s,n)?" past":"")+(isLive(s,n)?" live":"");
 function renderGrid(keepScroll){
   const el=$("#grid"),n=nowPT();
-  const prev={x:el.scrollLeft,y:el.scrollTop};
+  const prev={x:el.scrollLeft,y:el.scrollTop,pin:(el.querySelector(".pinrow")||{}).offsetHeight||0};
   const dayAll=SES.filter(s=>s.day===ui.day);
   if(!dayAll.length){el.innerHTML=`<div class="empty"><b>No sessions</b>Nothing is scheduled for this day.</div>`;el._t0=null;return}
   const list=M.filter(s=>s.day===ui.day);
@@ -582,7 +582,11 @@ function renderGrid(keepScroll){
   html+=`<div class="nowline" id="nowline" hidden></div></div>`;
   el.innerHTML=html;el._t0=t0;el._t1=t1;
   placeNow(n);
-  if(keepScroll){el.scrollLeft=prev.x;el.scrollTop=prev.y}
+  if(keepScroll){
+    // When the pinned My schedule row grows or shrinks above the view, shift by the same amount so the rows on screen stay put.
+    const pin=(el.querySelector(".pinrow")||{}).offsetHeight||0;
+    el.scrollLeft=prev.x;el.scrollTop=prev.y>0?Math.max(0,prev.y+pin-prev.pin):0;
+  }
 }
 function placeNow(n){
   const el=$("#grid"),line=$("#nowline"),tick=$("#nowtick");if(!line||el._t0==null)return;
@@ -631,7 +635,7 @@ function renderList(){
     el._scrolledFor=ui.day;
     const upcomingPinned=pinned.some(s=>!isPast(s,n));
     const target=[...el.querySelectorAll(".slot[data-slot]")].find(x=>+x.dataset.slot>=n.min-10);
-    if(!upcomingPinned&&target)el.scrollTop=target.offsetTop-4;
+    if(!upcomingPinned&&target){el.scrollTop=target.offsetTop-4;el._kept=null}
   }
 }
 
@@ -697,11 +701,14 @@ function render(opts){
   ui.f.my=ui.f.my.filter(id=>tagById(id));
   M=SES.filter(s=>matches(s,n));
   renderChrome(n);
-  const pane=currentPane();
-  if(pane==="grid")renderGrid(!opts||opts.keepScroll!==false);
+  const pane=currentPane(),keep=!opts||opts.keepScroll!==false;
+  const el=$("#"+pane),y=el.scrollTop;
+  if(pane==="grid")renderGrid(keep);
   else if(pane==="listv")renderList();
   else if(pane==="spkv")renderSpeakers();
   else renderMine();
+  if(keep&&pane!=="grid"&&el._kept===pane)el.scrollTop=y;   // replacing the content resets scroll; put it back
+  el._kept=pane;
   saveUI();
 }
 let rq=null;
@@ -741,14 +748,17 @@ function closeSheet(){
   const s=openSheet;openSheet=null;
   if(s.onClose)s.onClose();
   $("#sheetroot").innerHTML="";
-  const t=s.returnTo&&document.querySelector(s.returnTo);if(t)try{t.focus()}catch(e){}
+  // Prefer a match outside the pinned My schedule row so focus lands where the person was, and never scroll to it.
+  const all=s.returnTo?[...document.querySelectorAll(s.returnTo)]:[];
+  const t=all.find(x=>!x.closest(".pinrow"))||all[0];
+  if(t)try{t.focus({preventScroll:true})}catch(e){}
 }
 function showSheet(title,bodyHTML,opts){
   const returnTo=openSheet?openSheet.returnTo:focusTarget(document.activeElement);
   if(openSheet){const o=openSheet;openSheet=null;if(o.onClose)o.onClose()}
   $("#sheetroot").innerHTML=`<div class="scrim" data-close="1"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="shead gut"><h2>${esc(title)}</h2><button class="iconbtn" data-close="1" aria-label="Close">${ICON.x}</button></div><div class="sbody gut" id="sbody">${bodyHTML}</div></div>`;
   openSheet=Object.assign({returnTo},opts||{});
-  const b=$("#sheetroot .shead button");if(b)b.focus();
+  const b=$("#sheetroot .shead button");if(b)b.focus({preventScroll:true});
 }
 function refreshBody(html,after){const body=$("#sbody");if(!body)return;const y=body.scrollTop;const f=focusTarget(document.activeElement);body.innerHTML=html;if(after)after();body.scrollTop=y;const t=f&&body.querySelector(f);if(t)try{t.focus({preventScroll:true})}catch(e){}}
 
