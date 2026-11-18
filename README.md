@@ -51,4 +51,18 @@ To host it on GitHub Pages: Settings > Pages, source "Deploy from a branch", bra
 python3 tools/build_data.py
 ```
 
-This downloads the current session and speaker feeds from Microsoft and rewrites `data.json` (it leaves the file alone when nothing changed). Keep `tools/instance_keys.json` in the repo: it holds the keys for sessions that run more than once, so stars stay on the same run after a refresh. It needs Python 3.9 or newer and no extra packages. The script also cleans up known problems in the feeds; see the notes at the top of `tools/build_data.py`.
+A GitHub Actions workflow (`.github/workflows/refresh-data.yml`) runs this every 30 minutes through Nov 21, 2026, commits `data.json` only when the catalog changed, and rebuilds the Pages site. Run it by hand from the Actions tab, or disable it there (or delete the file) to stop it.
+
+The script downloads the current session and speaker feeds from Microsoft and rewrites `data.json` (it leaves the file alone when nothing changed). Keep `tools/instance_keys.json` in the repo: it holds the keys for sessions that run more than once, so stars stay on the same run after a refresh. It needs Python 3.9 or newer and no extra packages. The script also cleans up known problems in the feeds; see the notes at the top of `tools/build_data.py`.
+
+## Security and privacy
+
+- Static site: no server code, accounts or secrets. The repository holds only the app and Microsoft's public session catalog.
+- Strict Content Security Policy in `index.html`: scripts, styles, fonts, data and workers load only from this site; no inline scripts, embeds or outside connections. `app.js` holds the code so inline scripts can stay forbidden.
+- No third-party requests: fonts are self-hosted in `fonts/` (SIL Open Font License, license files included), and there is no analytics or tracking. Links to Microsoft are sent without a referrer.
+- All catalog text, notes, tag names, searches and imported calendar files are escaped before display.
+- Stars, notes and tags are stored in your browser's local storage on that device and never sent anywhere. Every GitHub Pages site under the same account shares the `<user>.github.io` origin, so avoid hosting untrusted code in other Pages sites on the same account.
+- The data-refresh workflow uses the per-run `GITHUB_TOKEN` (write access to this repository and Pages only), and its only third-party action, `actions/checkout`, is pinned to an exact commit.
+
+`index.html`, `app.js` and `fonts.css` are generated from the claude.ai version of the page; edit them together.
+

@@ -1,0 +1,64 @@
+# Pulls the Ignite session catalog every 30 minutes during the event and commits data.json
+# only when something changed (cancellations, moves, room changes, new sessions).
+# The page checks for new data while it is open and alerts on changes to starred sessions.
+# Delete this file, or disable the workflow in the Actions tab, to stop it.
+name: Refresh session data
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Only run through the end of the event
+        id: window
+        run: |
+          if [ "$(date -u +%Y%m%d)" -le 20261121 ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "active=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "active=false" >> "$GITHUB_OUTPUT"
+            echo "Ignite 2026 is over; nothing to refresh."
+          fi
+
+      # Pinned to an exact commit (v4.2.2) so a moved tag can't change what runs here.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        if: steps.window.outputs.active == 'true'
+
+      - name: Build data.json from Microsoft's catalog (uses the runner's Python 3, no extra packages)
+        if: steps.window.outputs.active == 'true'
+        run: python3 tools/build_data.py
+
+      - name: Commit and push if the data changed
+        id: commit
+        if: steps.window.outputs.active == 'true'
+        run: |
+          if git diff --quiet -- data.json tools/instance_keys.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No catalog changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data.json tools/instance_keys.json
+          git commit -m "Refresh session data"
+          git pull --rebase --quiet
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Rebuild the GitHub Pages site
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST "repos/${{ github.repository }}/pages/builds" || echo "Pages build request failed; the push may already have triggered one."
