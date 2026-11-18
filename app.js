@@ -11,6 +11,7 @@ const ICON={
   user:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
   note:'<svg class="i" viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/></svg>',
   x:'<svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  share:'<svg class="i" viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>',
   ext:'<svg class="i" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/></svg>',
   play:'<svg class="i" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>'
 };
@@ -589,6 +590,7 @@ function closeSheet(){
   const s=openSheet;openSheet=null;
   if(s.onClose)s.onClose();
   $("#sheetroot").innerHTML="";
+  if(/^#s-/.test(location.hash))try{history.replaceState(null,"",location.pathname+location.search+"#"+ui.view)}catch(e){}
   if(pendingData){const d=pendingData;pendingData=null;applyData(d)}
   // Prefer a match outside the pinned My schedule row so focus lands where the person was, and never scroll to it.
   const all=s.returnTo?[...document.querySelectorAll(s.returnTo)]:[];
@@ -610,7 +612,7 @@ function sessionBody(s){
   const when=s.day?`${dayLabel(s.day).long}, ${fmtMin(s.s)} to ${fmtMin(s.e)} PT (${s.e-s.s} min)`:"On demand / online";
   const others=(byCode.get(s.c)||[]).filter(x=>x.k!==s.k);
   const vid=/^https:\/\//i.test(s.vid||"")?s.vid:"";
-  let h=kindCallout(s)+`<div class="actions"><button class="btn${st?" primary":""}" data-star="${esc(s.k)}" aria-pressed="${st}">${ICON.star}${st?"Starred":"Star"}</button><a class="btn" href="https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}" target="_blank" rel="noopener">${ICON.ext}Official page</a>${vid?`<a class="btn" href="${esc(vid)}" target="_blank" rel="noopener">${ICON.play}Recording</a>`:""}</div>`;
+  let h=kindCallout(s)+`<div class="actions"><button class="btn${st?" primary":""}" data-star="${esc(s.k)}" aria-pressed="${st}">${ICON.star}${st?"Starred":"Star"}</button><a class="btn" href="https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}" target="_blank" rel="noopener">${ICON.ext}Official page</a><button class="btn" data-share="${esc(s.k)}">${ICON.share}Share</button>${vid?`<a class="btn" href="${esc(vid)}" target="_blank" rel="noopener">${ICON.play}Recording</a>`:""}</div><div class="impstat" id="sharestat" role="status"></div>`;
   h+=`<dl class="kv"><dt>When</dt><dd>${esc(when)}${isLive(s,n)?` <b style="color:var(--now)">LIVE NOW</b>`:""}</dd><dt>Where</dt><dd>${esc([s.b,s.r].filter(Boolean).join(", ")||"Online")}</dd><dt>Code</dt><dd>${esc(s.c)}</dd><dt>Type</dt><dd><span class="pill ${tclass(s.ty)}">${esc(s.ty)}</span></dd>`
     +(s.lv.length?`<dt>Level</dt><dd>${esc(s.lv.join(", "))}</dd>`:"")+(s.tp.length?`<dt>Topic</dt><dd>${esc(s.tp.join(", "))}</dd>`:"")+(s.au.length?`<dt>For</dt><dd>${esc(s.au.join(", "))}</dd>`:"")
     +`<dt>Format</dt><dd>${esc(s.dl.join(", "))}${s.rec?", recorded":", not recorded"}${s.seat?", "+esc(s.seat.toLowerCase()):""}</dd>`
@@ -930,6 +932,7 @@ document.addEventListener("click",e=>{
   if(d.close){closeSheet();return}
   if(d.star){toggleStar(d.star);return}
   if(d.fol){toggleFollow(d.fol);return}
+  if(d.share){shareSession(d.share);return}
   if(d.untag){const tg=tagById(d.untag),s=(byCode.get(d.code)||[])[0];
     const autoHit=tg&&s&&ruleMatch(s,compileRule(tg.q));setManual(d.code,d.untag,autoHit?false:null);return}
   if(d.retag){setManual(d.code,d.retag,null);return}
@@ -985,7 +988,50 @@ function zoom(dir){
 }
 $("#zin").addEventListener("click",()=>zoom(1));$("#zout").addEventListener("click",()=>zoom(-1));
 $("#nowbtn").addEventListener("click",()=>{const n=nowPT();if(DAYS.includes(n.day)){ui.day=n.day;render();scrollToNow()}else setStatus("The event isn't running right now")});
-function route(){const v=(location.hash||"").replace("#","");if(["guide","list","speakers","mine"].includes(v))ui.view=v;render({keepScroll:false});if(ui.view==="guide")scrollToNow()}
+// ---- share a session ----
+// The shared link opens the public GitHub Pages copy at that session (#s-KEY); claude.ai links need an account.
+const sessionLink=k=>(IN_CLAUDE?GH_URL:location.origin+location.pathname)+"#s-"+k;
+function shareText(s){
+  const when=s.day?`${dayLabel(s.day).long}, ${fmtMin(s.s)} to ${fmtMin(s.e)} PT`:"On demand";
+  const where=[s.b,s.r].filter(Boolean).join(", ")||"Online";
+  const notes=[s.cancelled?"Cancelled by Microsoft":"",s.kind!=="inperson"?KIND[s.kind].label:""].filter(Boolean).join(", ");
+  return `${s.c}: ${s.t}${notes?` (${notes})`:""}\n${when}\n${where}${s.spn?"\n"+s.spn:""}\nGuide: ${sessionLink(s.k)}\nOfficial page: https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}`;
+}
+function shareStatus(t){const el=$("#sharestat");if(el)el.textContent=t}
+async function shareSession(k){
+  const s=byKey.get(k);if(!s)return;
+  const text=shareText(s);
+  if(!IN_CLAUDE&&navigator.share){                 // phone share sheet (not available inside claude.ai)
+    try{await navigator.share({title:`${s.c}: ${s.t}`,text});return}
+    catch(e){if(e&&e.name==="AbortError")return}
+  }
+  try{await navigator.clipboard.writeText(text);shareStatus("Copied the session details and links. Paste them anywhere.")}
+  catch(e){shareStatus("Copy didn't work here. Select and copy this:\n"+text)}
+}
+// Deep link: #s-KEY opens the guide on that session's day, scrolls to it and opens its details.
+function revealSession(s){
+  if(s.day){
+    const el=$("#grid"),b=[...el.querySelectorAll(`.blk[data-k="${CSS.escape(s.k)}"]`)].find(x=>!x.closest(".pinrow"));
+    if(b){const lw=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--labelw"))||112;
+      el.scrollLeft=Math.max(0,parseFloat(b.style.left)-40);el.scrollTop=Math.max(0,b.closest(".grow").offsetTop-el.clientHeight/3)}
+  }else{const c=$(`#listv [data-card="${CSS.escape(s.k)}"]`);if(c)$("#listv").scrollTop=Math.max(0,c.offsetTop-80)}
+}
+function route(){
+  if(openSheet){const o=openSheet;openSheet=null;if(o.onClose)o.onClose();$("#sheetroot").innerHTML=""}   // a new link replaces any open details
+  const v=(location.hash||"").replace("#","");
+  const m=v.match(/^s-([A-Za-z0-9-]+)$/);
+  if(m){
+    const s=byKey.get(m[1])||byKey.get(m[1].toUpperCase())||(byCode.get(m[1].toUpperCase())||[])[0];
+    if(s){
+      ui.view="guide";ui.day=s.day||"od";
+      if(ui.q&&!matches(s,nowPT())){ui.q="";$("#q").value=""}
+      FKEYS.forEach(k=>{if(ui.f[k].length&&!matches(s,nowPT()))ui.f[k]=[]});
+      if(!matches(s,nowPT())){ui.onlyTrk=ui.onlyStar=false;ui.hidePast=false}   // make sure the shared session is visible
+      render({keepScroll:false});revealSession(s);openSession(s.k);return;
+    }
+  }
+  if(["guide","list","speakers","mine"].includes(v))ui.view=v;render({keepScroll:false});if(ui.view==="guide")scrollToNow();
+}
 window.addEventListener("hashchange",route);
 
 // ================= storage =================
