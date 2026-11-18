@@ -948,13 +948,16 @@ function parseICS(txt){
     if(!ev)return;const i=line.indexOf(":");if(i<0)return;
     const prop=line.slice(0,i),name=prop.split(";")[0].toUpperCase(),val=line.slice(i+1);
     if(name==="DTSTART")Object.assign(ev,icsTime(prop,val));
-    else if(["SUMMARY","DESCRIPTION","URL","UID","LOCATION","X-ALT-DESC"].includes(name))ev[name]=(ev[name]?ev[name]+" ":"")+icsText(val);
+    else if(["SUMMARY","DESCRIPTION","URL","UID","LOCATION","X-ALT-DESC","X-SESSION-ID"].includes(name))ev[name]=(ev[name]?ev[name]+" ":"")+icsText(val);
   });
   return items.map(ev=>{
-    const all=[ev.SUMMARY,ev.DESCRIPTION,ev.URL,ev.UID,ev["X-ALT-DESC"]].join(" ");
-    const idm=all.match(/\/sessions\/([A-Za-z0-9]+)/);
+    // Ignite's own export: SUMMARY is "Type | CODE | Title", X-SESSION-ID is the catalog session id.
+    const parts=String(ev.SUMMARY||"").split(" | ").map(x=>x.trim());
+    const title=parts.length>=3?parts.slice(2).join(" | "):String(ev.SUMMARY||"").trim();
+    const all=[ev.SUMMARY,ev.UID,ev.URL,ev.DESCRIPTION,ev["X-ALT-DESC"]].join(" ");
+    const idm=String(ev["X-SESSION-ID"]||"").trim()||((all.match(/\/sessions\/([A-Za-z0-9]+)/)||[])[1])||"";
     const code=(all.match(/\b[A-Za-z]{2,10}\d{1,5}[A-Za-z]?\b/g)||[]).map(c=>c.toUpperCase()).find(c=>byCode.has(c)||/^AGENDA/.test(c))||"";
-    return {code,id:idm?idm[1]:"",title:String(ev.SUMMARY||"").trim(),day:ev.day||null,min:ev.min!=null?ev.min:null};
+    return {code,id:idm,title,day:ev.day||null,min:ev.min!=null?ev.min:null};
   }).filter(x=>x.code||x.id||x.title);
 }
 function importICS(txt){
