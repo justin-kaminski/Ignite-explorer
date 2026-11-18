@@ -13,6 +13,8 @@ Cleanup applied to the raw feeds:
 - HTML in descriptions and bios is converted to plain text; broken characters (U+FFFD) become apostrophes.
 - Times are converted to Pacific (event time zone) as day + minutes from midnight.
 - Sessions that run more than once share a code; each run gets its own key (CODE, CODE-2, ...).
+  Keys are saved in tools/instance_keys.json and reused on every refresh, so a starred run keeps
+  its key even if Microsoft reschedules it.
 - Speaker records that appear twice with the same ID are folded together.
 - Speaker records that appear twice with different IDs but the same name and at least one shared
   session are merged; the old ID is kept in "alias" so the page can move existing follows over.
@@ -86,13 +88,33 @@ def to_pt(iso):
     return dt.datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(PT)
 
 
-def build_sessions(raw):
+def assign_keys(raw, saved):
+    """Map sessionInstanceId -> stable key. Reuse saved keys; give new runs the next free CODE-N."""
+    keys, used = {}, set()
+    for s in raw:
+        k = saved.get(s["sessionInstanceId"])
+        if k and k not in used:
+            keys[s["sessionInstanceId"]] = k
+            used.add(k)
+    for s in sorted(raw, key=lambda s: (s.get("sessionCode") or s["sessionId"], s.get("startDateTime") or "z")):
+        if s["sessionInstanceId"] in keys:
+            continue
+        code, n = s.get("sessionCode") or s["sessionId"], 1
+        while (code if n == 1 else f"{code}-{n}") in used:
+            n += 1
+        k = code if n == 1 else f"{code}-{n}"
+        keys[s["sessionInstanceId"]] = k
+        used.add(k)
+    return keys
+
+
+def build_sessions(raw, saved_keys):
     raw = sorted(raw, key=lambda s: (s.get("sessionCode") or s["sessionId"], s.get("startDateTime") or "z"))
-    sessions, seen, instance_key = [], {}, {}
+    keys = assign_keys(raw, saved_keys)
+    sessions, instance_key = [], {}
     for s in raw:
         code = s.get("sessionCode") or s["sessionId"]
-        seen[code] = seen.get(code, 0) + 1
-        key = code if seen[code] == 1 else f"{code}-{seen[code]}"
+        key = keys[s["sessionInstanceId"]]
         instance_key["en-US-" + s["sessionInstanceId"]] = key
         loc = (s.get("location") or {}).get("displayValue") or ""
         building, room = ([x.strip() for x in loc.split("|", 1)] if "|" in loc else (loc, ""))
@@ -208,12 +230,16 @@ def main():
     ap.add_argument("--sessions", help="saved session feed JSON (skips download)")
     ap.add_argument("--speakers", help="saved speaker feed JSON (skips download)")
     ap.add_argument("--out", default=str(Path(__file__).resolve().parent.parent / "data.json"))
+    ap.add_argument("--keys", default=str(Path(__file__).resolve().parent / "instance_keys.json"),
+                    help="saved session-run keys, reused so stars stay on the same run")
     a = ap.parse_args()
 
     raw_sessions = json.load(open(a.sessions, encoding="utf-8")) if a.sessions else fetch_json(SESSIONS_URL)
     raw_speakers = json.load(open(a.speakers, encoding="utf-8")) if a.speakers else fetch_speakers()
 
-    sessions, instance_key = build_sessions(raw_sessions)
+    key_file = Path(a.keys)
+    saved_keys = json.loads(key_file.read_text(encoding="utf-8")) if key_file.exists() else {}
+    sessions, instance_key = build_sessions(raw_sessions, saved_keys)
     speakers, alias, stubs = build_speakers(raw_speakers, raw_sessions, sessions, instance_key)
     out = {
         "event": "Microsoft Ignite 2026",
@@ -227,6 +253,9 @@ def main():
     if "�" in body:
         sys.exit("Output still contains U+FFFD replacement characters; check the feed.")
     Path(a.out).write_text(body, encoding="utf-8")
+    all_keys = dict(saved_keys)
+    all_keys.update({iid[len("en-US-"):]: k for iid, k in instance_key.items()})
+    key_file.write_text(json.dumps(all_keys, indent=0, sort_keys=True), encoding="utf-8")
     timed = sum(1 for s in sessions if "day" in s)
     print(f"Wrote {a.out}: {len(sessions)} sessions ({timed} scheduled), {len(speakers)} speakers, "
           f"{len(alias)} merged duplicates, {stubs} rebuilt speakers, {len(body) // 1024} KB")

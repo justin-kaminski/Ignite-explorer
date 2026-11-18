@@ -16,6 +16,7 @@ This is an independent, unofficial tool. Session data comes from Microsoft's pub
 - **Speakers:** search all speakers and follow them. Their sessions get a pink outline and their names show in pink.
 - **My schedule:** starred sessions with overlaps flagged, sessions from followed speakers, and notes.
 - **Notes:** per-session notes that save as you type.
+- **Import from the Microsoft app:** paste session codes or titles, or (in the claude.ai version) pick screenshots of My Schedule from the Microsoft Events app and Claude reads the session codes from them. You review the matches before anything is starred.
 
 All times are Pacific, the event's time zone.
 
@@ -44,4 +45,4 @@ To host it on GitHub Pages, publish this repository (or this folder) with Pages;
 python3 tools/build_data.py
 ```
 
-This downloads the current session and speaker feeds from Microsoft and rewrites `data.json`. It needs Python 3.9 or newer and no extra packages. The script also cleans up known problems in the feeds; see the notes at the top of `tools/build_data.py`.
+This downloads the current session and speaker feeds from Microsoft and rewrites `data.json`. Keep `tools/instance_keys.json` in the repo: it holds the keys for sessions that run more than once, so stars stay on the same run after a refresh. It needs Python 3.9 or newer and no extra packages. The script also cleans up known problems in the feeds; see the notes at the top of `tools/build_data.py`.
