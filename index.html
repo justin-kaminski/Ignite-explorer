@@ -342,7 +342,7 @@ const saveUI=()=>LS("ig-ui",ui);
 
 // ================= catalog =================
 let DATA=null,SES=[],DAYS=[],TAGLIST=[],ALIAS={};
-const byKey=new Map(),byCode=new Map(),SPK=new Map();
+const byKey=new Map(),byCode=new Map(),byId=new Map(),SPK=new Map();
 
 // ================= the person's data (stars, follows, notes, tags) =================
 const my={stars:new Set(),follow:new Set(),notes:new Map(),tags:[],manual:{}};
@@ -870,7 +870,10 @@ async function initSample(){
 function importBody(){
   const img=sampleFn&&imageLimits;
   return `<p class="hint" style="margin:0">Add the sessions you already picked in the Microsoft Events app. Agenda items such as badge pickup and lunch are not catalog sessions, so they are skipped. You get to review the matches before anything is starred.</p>
-  <div class="imp"><div class="sec" style="margin:4px 0 0">From screenshots</div>${img
+  <div class="imp"><div class="sec" style="margin:4px 0 0">From your Ignite calendar file (most accurate)</div>
+  <p class="hint" style="margin:0">On the Ignite website, sign in and open My Schedule, then use the option to sync or download your schedule to a calendar. Open that link in your browser to save the calendar file (.ics), then pick it here. You can also paste the file's text in the text box below.</p>
+  <input type="file" id="impics" accept=".ics,text/calendar"><div class="actions"><button class="btn primary" id="impicsgo">Read calendar file</button></div>
+  <div class="sec" style="margin:8px 0 0">From screenshots</div>${img
     ?`<p class="hint" style="margin:0">Take screenshots of My Schedule in the Microsoft app, one per day is fine, then pick them here. Claude reads the session codes from them using your Claude account.</p><input type="file" id="impfiles" accept="${esc(imageLimits.mediaTypes.join(","))}" multiple><div class="actions"><button class="btn primary" id="impread">Read screenshots</button><button class="btn" id="impstop" hidden>Stop</button></div>`
     :`<p class="hint" style="margin:0">Reading screenshots works in the claude.ai version of this page. Here, type or paste the session codes instead.</p>`}
   <div class="sec" style="margin:8px 0 0">From text</div><p class="hint" style="margin:0">Paste or type session codes or titles, separated by commas or new lines, for example BRK543, THR920.</p><textarea id="imptext" placeholder="BRK543, THR920, INV641"></textarea><div class="actions"><button class="btn" id="impfind">Find sessions</button></div>
@@ -894,6 +897,7 @@ function resolveItems(items){
     const code=String(it.code||"").toUpperCase().replace(/\s+/g,"");
     if(/^AGENDA/.test(code)){agenda.push(it.title||code);return}
     let cands=code&&byCode.get(code)?byCode.get(code).slice():[];
+    if(!cands.length&&it.id&&byId.get(it.id))cands=byId.get(it.id).slice();
     if(!cands.length&&it.title){
       const nt=normTitle(it.title),nw=new Set(nt.split(" "));let best=0,pick=[];
       titleIndex.forEach(x=>{let sc;if(x.n===nt)sc=1;else{let inter=0;nw.forEach(w=>{if(x.w.has(w))inter++});sc=inter/Math.max(nw.size,x.w.size)}
@@ -901,7 +905,7 @@ function resolveItems(items){
       if(best>=0.75)cands=pick;
     }
     if(!cands.length){missing.push(it.title||code||"(unreadable entry)");return}
-    const d=parseDay(it.date),t=parseTime(it.start);
+    const d=it.day||parseDay(it.date),t=it.min!=null?it.min:parseTime(it.start);
     let narrowed=d?cands.filter(s=>s.day===d):cands;if(!narrowed.length)narrowed=cands;
     if(t!=null&&narrowed.length>1){const exact=narrowed.filter(s=>s.s===t);if(exact.length)narrowed=exact}
     narrowed.forEach((s,i)=>{if(!found.has(s.k))found.set(s.k,{s,checked:i===0})});
@@ -921,8 +925,46 @@ function showResults(r){
   if(!r.found.length&&!r.missing.length&&!r.agenda.length)h=`<p class="miss">No sessions found.</p>`;
   $("#impres").innerHTML=h;
 }
+// iCalendar (.ics) parsing: one item per VEVENT with code, session id, title and Pacific start.
+const ptFull=new Intl.DateTimeFormat("en-US",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
+function icsTime(prop,val){
+  const m=String(val||"").match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?$/);if(!m||m[4]==null)return {};
+  if(m[7]){const p={};ptFull.formatToParts(new Date(Date.UTC(+m[1],m[2]-1,+m[3],+m[4],+m[5]))).forEach(x=>p[x.type]=x.value);return {day:`${p.year}-${p.month}-${p.day}`,min:(+p.hour)*60+(+p.minute)}}
+  const tz=(prop.match(/TZID=([^;:]+)/i)||[])[1]||"";
+  if(!tz||/los_angeles|pacific/i.test(tz))return {day:`${m[1]}-${m[2]}-${m[3]}`,min:(+m[4])*60+(+m[5])};
+  return {day:`${m[1]}-${m[2]}-${m[3]}`};
+}
+const icsText=v=>String(v||"").replace(/\\n/gi,"\n").replace(/\\([,;\\])/g,"$1");
+function parseICS(txt){
+  const lines=String(txt).replace(/\r\n/g,"\n").replace(/\n[ \t]/g,"").split("\n");
+  const items=[];let ev=null;
+  lines.forEach(line=>{
+    if(/^BEGIN:VEVENT/i.test(line)){ev={};return}
+    if(/^END:VEVENT/i.test(line)){if(ev)items.push(ev);ev=null;return}
+    if(!ev)return;const i=line.indexOf(":");if(i<0)return;
+    const prop=line.slice(0,i),name=prop.split(";")[0].toUpperCase(),val=line.slice(i+1);
+    if(name==="DTSTART")Object.assign(ev,icsTime(prop,val));
+    else if(["SUMMARY","DESCRIPTION","URL","UID","LOCATION","X-ALT-DESC"].includes(name))ev[name]=(ev[name]?ev[name]+" ":"")+icsText(val);
+  });
+  return items.map(ev=>{
+    const all=[ev.SUMMARY,ev.DESCRIPTION,ev.URL,ev.UID,ev["X-ALT-DESC"]].join(" ");
+    const idm=all.match(/\/sessions\/([A-Za-z0-9]+)/);
+    const code=(all.match(/\b[A-Za-z]{2,10}\d{1,5}[A-Za-z]?\b/g)||[]).map(c=>c.toUpperCase()).find(c=>byCode.has(c)||/^AGENDA/.test(c))||"";
+    return {code,id:idm?idm[1]:"",title:String(ev.SUMMARY||"").trim(),day:ev.day||null,min:ev.min!=null?ev.min:null};
+  }).filter(x=>x.code||x.id||x.title);
+}
+function importICS(txt){
+  const items=parseICS(txt);
+  if(!items.length){impStatus("That file has no calendar entries this page can read.",true);return}
+  impStatus(`Read ${items.length} calendar entr${items.length===1?"y":"ies"}.`);showResults(resolveItems(items));
+}
+async function readICSFile(){
+  const f=($("#impics").files||[])[0];if(!f){impStatus("Pick the calendar file first.",true);return}
+  try{importICS(await f.text())}catch(e){impStatus("That file couldn't be read.",true)}
+}
 function findFromText(){
-  const txt=$("#imptext").value||"";const items=[];const used=new Set();
+  const txt=$("#imptext").value||"";
+  if(/BEGIN:VCALENDAR|BEGIN:VEVENT/i.test(txt)){importICS(txt);return}const items=[];const used=new Set();
   (txt.match(/\b[A-Za-z]{2,10}\d{1,5}[A-Za-z]?\b/g)||[]).forEach(c=>{const C=c.toUpperCase();if((byCode.has(C)||/^AGENDA/.test(C))&&!used.has(C)){used.add(C);items.push({code:C})}});
   txt.split(/[\n;]+/).map(x=>x.trim()).filter(x=>x.length>8&&!/^[A-Za-z]{2,10}\d{1,5}[A-Za-z]?$/.test(x)&&!(x.match(/\b[A-Za-z]{2,10}\d{1,5}[A-Za-z]?\b/g)||[]).some(c=>used.has(c.toUpperCase()))).forEach(line=>items.push({title:line}));
   if(!items.length){impStatus("No session codes or titles found in that text.",true);return}
@@ -1011,6 +1053,7 @@ document.addEventListener("click",e=>{
     case "impread":readScreenshots();return;
     case "impstop":if(impCtl)impCtl.abort();return;
     case "impfind":findFromText();return;
+    case "impicsgo":readICSFile();return;
     case "impstar":starImported();return;
   }
 });
@@ -1155,6 +1198,7 @@ function prep(d){
     s.spn=s.sp.map(id=>SPK.get(id)).filter(Boolean).map(p=>p.n).join(", ");
     s.hay=[s.t,s.c,s.spn,s.tg.join(" "),s.tp.join(" "),s.ty,s.b,s.r,s.d].join(" ").toLowerCase();
     byKey.set(s.k,s);if(!byCode.has(s.c))byCode.set(s.c,[]);byCode.get(s.c).push(s);
+    if(s.id){if(!byId.has(s.id))byId.set(s.id,[]);byId.get(s.id).push(s)}
   });
   byCode.forEach(v=>v.sort(byTime));
   SES=d.sessions;
