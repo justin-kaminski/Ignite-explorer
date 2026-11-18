@@ -378,7 +378,7 @@ function renderMine(){
   const el=$("#minev"),n=nowPT();
   const starred=[...my.stars].map(k=>byKey.get(k)).filter(Boolean).sort(byTime);
   const conf=overlapMap(starred);
-  let html=`<div class="list">${reminderCard()}${changesHTML()}<div class="actions" style="margin-top:8px"><button class="btn" data-import="1"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Import from the Microsoft app</button></div>`;
+  let html=`<div class="list">${reminderCard()}${transferCard()}${changesHTML()}<div class="actions" style="margin-top:8px"><button class="btn" data-import="1"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Import from the Microsoft app</button></div>`;
   html+=`<div class="sec">Starred<small>${starred.length}</small></div>`;
   if(!starred.length)html+=`<p class="hint">Tap the star on any session to add it here, or import the sessions you already picked in the Microsoft Events app. Overlapping picks get flagged.</p>`;
   let cur=null;
@@ -401,6 +401,77 @@ const GH_URL="https://justin-kaminski.github.io/Ignite-explorer/";
 const sysSupported=!IN_CLAUDE&&"Notification" in window&&window.isSecureContext;
 let swReg=null;
 const notified=(()=>{const v=LS("ig-notified");return v&&typeof v==="object"?v:{}})();
+// ================= transfer link =================
+// Packs stars, follows, tags and notes into the part of a link after "#", which browsers never send to the server.
+// The receiving device shows what is in it and merges only when the person confirms.
+const XFER_MAX=1000;
+function transferCard(){
+  return `<div class="remcard"><div class="sec" style="margin:4px 0 2px">Move to another device</div>
+  <p class="hint" style="margin:0">Copy a link that carries your stars, followed speakers, tags and notes, send it to yourself, and open it on your other device${IN_CLAUDE?" (it opens the GitHub version of this guide)":""}. You'll be asked before anything is merged. Anyone with the link can read your notes, so only send it to yourself.</p>
+  <div class="actions"><button class="btn" id="xfercopy">Copy transfer link</button>${!IN_CLAUDE&&navigator.share?`<button class="btn" id="xfershare">${ICON.share}Send to myself</button>`:""}</div>
+  <div class="impstat" id="xferstat" role="status"></div></div>`;
+}
+const b64u={
+  enc:bytes=>{let bin="";for(let i=0;i<bytes.length;i+=0x8000)bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));return btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")},
+  dec:str=>{const b=atob(str.replace(/-/g,"+").replace(/_/g,"/")+"===".slice((str.length+3)%4));const out=new Uint8Array(b.length);for(let i=0;i<b.length;i++)out[i]=b.charCodeAt(i);return out}
+};
+async function pipeBytes(bytes,stream){const r=new Response(new Blob([bytes]).stream().pipeThrough(stream));return new Uint8Array(await r.arrayBuffer())}
+async function buildTransferLink(){
+  const data={v:1,st:[...my.stars],fo:[...my.follow],tg:my.tags,mn:my.manual,nt:Object.fromEntries(my.notes)};
+  let bytes=new TextEncoder().encode(JSON.stringify(data)),z="j";
+  if(typeof CompressionStream==="function"){try{bytes=await pipeBytes(bytes,new CompressionStream("deflate-raw"));z="z"}catch(e){}}
+  const base=IN_CLAUDE?GH_URL:location.origin+location.pathname;
+  return {url:`${base}#xfer-${z}${b64u.enc(bytes)}`,counts:{st:data.st.length,fo:data.fo.length,tg:data.tg.length,nt:Object.keys(data.nt).length}};
+}
+const xferSummary=c=>`${c.st} starred, ${c.fo} followed speaker${c.fo===1?"":"s"}, ${c.tg} tag${c.tg===1?"":"s"}, ${c.nt} note${c.nt===1?"":"s"}`;
+async function copyTransfer(){
+  const st=$("#xferstat");
+  try{
+    const {url,counts}=await buildTransferLink();
+    try{await navigator.clipboard.writeText(url);st.textContent=`Copied a link with ${xferSummary(counts)}. Send it to yourself and open it on the other device.`}
+    catch(e){st.textContent="Copy didn't work here. Select and copy this link:\n"+url}
+  }catch(e){st.textContent="Couldn't build the link: "+(e&&e.message||e)}
+}
+async function shareTransfer(){
+  try{const {url,counts}=await buildTransferLink();await navigator.share({title:"Ignite Explorer transfer link",text:`My Ignite Explorer data (${xferSummary(counts)}). Open on my other device:`,url})}
+  catch(e){if(!(e&&e.name==="AbortError"))$("#xferstat").textContent="Sharing didn't work; use Copy transfer link instead."}
+}
+async function readTransfer(payload){
+  const z=payload[0],bytes=b64u.dec(payload.slice(1));
+  const raw=z==="z"?await pipeBytes(bytes,new DecompressionStream("deflate-raw")):bytes;
+  const d=JSON.parse(new TextDecoder().decode(raw));
+  if(!d||d.v!==1)throw new Error("unknown format");
+  const strs=(v,max,len)=>Array.isArray(v)?v.filter(x=>typeof x==="string"&&x.length<=len).slice(0,max):[];
+  const tags=Array.isArray(d.tg)?d.tg.filter(t=>t&&typeof t.id==="string"&&typeof t.name==="string").slice(0,100).map(t=>({id:t.id.slice(0,40),name:t.name.slice(0,40),q:typeof t.q==="string"?t.q.slice(0,2000):"",c:+t.c||0})):[];
+  const manual={};if(d.mn&&typeof d.mn==="object")Object.entries(d.mn).slice(0,XFER_MAX).forEach(([c,m])=>{if(typeof c==="string"&&c.length<=40&&m&&typeof m==="object"){const mm={};Object.entries(m).forEach(([id,b])=>{if(typeof b==="boolean")mm[id]=b});if(Object.keys(mm).length)manual[c]=mm}});
+  const notes={};if(d.nt&&typeof d.nt==="object")Object.entries(d.nt).slice(0,XFER_MAX).forEach(([c,t])=>{if(typeof c==="string"&&c.length<=40&&typeof t==="string"&&t)notes[c]=t.slice(0,20000)});
+  return {st:strs(d.st,XFER_MAX,40),fo:strs(d.fo,XFER_MAX,80),tg:tags,mn:manual,nt:notes};
+}
+function clearXferHash(){try{history.replaceState(null,"",location.pathname+location.search+"#mine")}catch(e){}}
+async function openTransfer(payload){
+  let d;
+  try{d=await readTransfer(payload)}
+  catch(e){clearXferHash();showSheet("Transfer link",`<p class="hint">This transfer link couldn't be read. It may have been cut off when it was sent; try copying it again.</p><div class="actions"><button class="btn" data-close="1">Close</button></div>`);return}
+  const newSt=d.st.filter(k=>!my.stars.has(k)).length,newFo=d.fo.filter(k=>!my.follow.has(ALIAS[k]||k)).length;
+  const newTg=d.tg.filter(t=>!my.tags.some(x=>x.id===t.id||x.name.toLowerCase()===t.name.toLowerCase())).length;
+  const nn=Object.entries(d.nt);const newNt=nn.filter(([c])=>!my.notes.has(c)).length,diffNt=nn.filter(([c,t])=>my.notes.has(c)&&my.notes.get(c)!==t).length;
+  showSheet("Merge from another device",`<p style="margin:0">This link has ${esc(xferSummary({st:d.st.length,fo:d.fo.length,tg:d.tg.length,nt:nn.length}))}.</p>
+  <ul class="hint" style="margin:0;padding-left:20px"><li>${newSt} new starred session${newSt===1?"":"s"}</li><li>${newFo} new followed speaker${newFo===1?"":"s"}</li><li>${newTg} new tag${newTg===1?"":"s"}</li><li>${newNt} new note${newNt===1?"":"s"}${diffNt?`, and ${diffNt} note${diffNt===1?"":"s"} that differ from this device's (both versions are kept)`:""}</li></ul>
+  <p class="hint" style="margin:0">Merging only adds. Nothing on this device is removed.</p>
+  <div class="actions"><button class="btn primary" id="xfermerge">Merge into this device</button><button class="btn" data-close="1">Cancel</button></div>`,{kind:"x",data:d,onClose:clearXferHash});
+}
+function mergeTransfer(d){
+  d.st.forEach(k=>my.stars.add(k));
+  d.fo.forEach(k=>my.follow.add(ALIAS[k]||k));
+  const idMap={};
+  d.tg.forEach(t=>{const ex=my.tags.find(x=>x.id===t.id||x.name.toLowerCase()===t.name.toLowerCase());if(ex){idMap[t.id]=ex.id;if(!ex.q&&t.q)ex.q=t.q}else{my.tags.push(Object.assign({},t,{c:nextTagColor()}));idMap[t.id]=t.id}});
+  Object.entries(d.mn).forEach(([c,m])=>{const cur=Object.assign({},my.manual[c]||{});Object.entries(m).forEach(([id,b])=>{const nid=idMap[id]||id;if(!(nid in cur))cur[nid]=b});my.manual[c]=cur});
+  tagsChanged();store.prefsChanged();
+  Object.entries(d.nt).forEach(([c,t])=>{const cur=my.notes.get(c);if(!cur)store.setNote(c,t);else if(cur!==t&&!cur.includes(t))store.setNote(c,cur+"\n\n--- from your other device ---\n"+t)});
+  closeSheet();ui.view="mine";clearXferHash();render({keepScroll:false});
+  notify({head:"Merged",title:"Your data from the other device is merged",meta:xferSummary({st:d.st.length,fo:d.fo.length,tg:d.tg.length,nt:Object.keys(d.nt).length}),tag:"xfer"});
+}
+
 function reminderCard(){
   const perm=sysSupported?Notification.permission:"unsupported";
   return `<div class="remcard"><div class="sec" style="margin:4px 0 2px">Reminders</div>
@@ -959,6 +1030,9 @@ document.addEventListener("click",e=>{
     case "impstar":starImported();return;
     case "icsbtn":downloadICS();return;
     case "copycodes":copyCodes();return;
+    case "xfercopy":copyTransfer();return;
+    case "xfershare":shareTransfer();return;
+    case "xfermerge":if(openSheet&&openSheet.data)mergeTransfer(openSheet.data);return;
     case "clrchg":changes=[];LS("ig-changes",changes);render();return;
   }
 });
@@ -1019,6 +1093,8 @@ function revealSession(s){
 function route(){
   if(openSheet){const o=openSheet;openSheet=null;if(o.onClose)o.onClose();$("#sheetroot").innerHTML=""}   // a new link replaces any open details
   const v=(location.hash||"").replace("#","");
+  const x=v.match(/^xfer-([jz][A-Za-z0-9_-]+)$/);
+  if(x&&!IN_CLAUDE){ui.view="mine";render({keepScroll:false});openTransfer(x[1]);return}
   const m=v.match(/^s-([A-Za-z0-9-]+)$/);
   if(m){
     const s=byKey.get(m[1])||byKey.get(m[1].toUpperCase())||(byCode.get(m[1].toUpperCase())||[])[0];

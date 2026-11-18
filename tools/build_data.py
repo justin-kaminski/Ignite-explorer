@@ -18,6 +18,8 @@ Cleanup applied to the raw feeds:
 - Speaker records that appear twice with the same ID are folded together.
 - Speaker records that appear twice with different IDs but the same name and at least one shared
   session are merged; the old ID is kept in "alias" so the page can move existing follows over.
+  Merges are remembered in tools/speaker_aliases.json, so an old ID keeps working after Microsoft
+  removes the duplicate record.
 - Speakers a session lists but the speaker feed is missing are rebuilt from the session's name list.
 - Session -> speaker and speaker -> session links are made consistent in both directions.
 """
@@ -241,6 +243,22 @@ def main():
     saved_keys = json.loads(key_file.read_text(encoding="utf-8")) if key_file.exists() else {}
     sessions, instance_key = build_sessions(raw_sessions, saved_keys)
     speakers, alias, stubs = build_speakers(raw_speakers, raw_sessions, sessions, instance_key)
+
+    # Keep earlier merges: once a duplicate speaker record disappears from the feed, its old ID must still
+    # point at the surviving record, or follows saved under the old ID would silently stop matching.
+    alias_file = Path(a.keys).parent / "speaker_aliases.json"
+    saved_alias = json.loads(alias_file.read_text(encoding="utf-8")) if alias_file.exists() else {}
+    known = {p["id"] for p in speakers}
+    for old_id, new_id in saved_alias.items():
+        if old_id in known or old_id in alias:
+            continue
+        seen_ids = set()
+        while new_id in alias and new_id not in seen_ids:
+            seen_ids.add(new_id)
+            new_id = alias[new_id]
+        if new_id in known:
+            alias[old_id] = new_id
+    alias_file.write_text(json.dumps(dict(sorted({**saved_alias, **alias}.items())), indent=0), encoding="utf-8")
     out = {
         "event": "Microsoft Ignite 2026",
         "tz": "America/Los_Angeles",
