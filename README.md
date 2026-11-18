@@ -17,6 +17,8 @@ This is an independent, unofficial tool. Session data comes from Microsoft's pub
 - **Speakers:** search all speakers and follow them. Their sessions get a pink outline and their names show in pink.
 - **My schedule:** starred sessions with overlaps flagged, sessions from followed speakers, and notes.
 - **Notes:** per-session notes that save as you type.
+- **Reminders (optional):** turn on in My schedule. A banner appears 5, 10, 15 or 30 minutes before each starred session while the page is open; on this GitHub Pages version you can also enable system notifications (`sw.js` handles taps). Phones pause background tabs, so for alerts with the page closed use **Add starred sessions to my calendar**, which downloads an `.ics` file with an alarm on each session. Cancelled sessions are skipped.
+- **Cancelled sessions:** Microsoft marks cancellations only with a "CANCELLED:" title prefix; these get a red CANCELLED label, a struck-through title, a warning in My schedule, and a Kind filter option.
 - **Import your existing schedule:** three ways, and you review the matches before anything is starred.
   - Calendar file (most accurate): open https://ignite.microsoft.com/en-US/schedule and sign in, then tap the download (down arrow) button. If it isn't there, tap your profile picture at the top right; the panel has My schedule with the download button under the day picker. Save the `.ics` file and pick it in the import panel. It is read entirely in the page.
   - Codes or titles: paste or type them, for example `BRK543, THR920`.

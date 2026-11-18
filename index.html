@@ -244,6 +244,20 @@ main{flex:1;min-height:0;position:relative}
 .callout{border:1px dashed var(--kc,var(--line));border-left:4px solid var(--kc,var(--line));background:color-mix(in srgb,var(--kc,var(--muted)) 10%,var(--surface));border-radius:8px;padding:9px 11px;font-size:13px;line-height:1.45}
 .kc-overflow{--kc:var(--muted)} .kc-online{--kc:var(--c-inv)} .kc-ondemand{--kc:var(--c-oth)} .kc-digital{--kc:var(--c-lab)} .kc-main{--kc:var(--accent)}
 .linkbtn{border:0;background:none;padding:0;color:var(--focus);text-decoration:underline;text-align:left;font:inherit;cursor:pointer}
+.remcard{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.chk{display:flex;align-items:center;gap:8px;font-size:13.5px;flex-wrap:wrap}
+.chk input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);flex:none}
+.chk select{height:30px;border:1px solid var(--line);background:var(--surface2);border-radius:6px;padding:0 6px}
+#toasts{position:fixed;z-index:70;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;width:min(360px,calc(100% - 24px))}
+.toast{background:var(--surface);border:1px solid var(--accent);border-left:5px solid var(--accent);border-radius:10px;padding:10px 12px;box-shadow:0 8px 30px rgb(0 0 0 / .3);display:flex;flex-direction:column;gap:3px}
+.toast .tt{font-family:var(--f-mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.05em}
+.toast .tb{font-weight:600;line-height:1.3}
+.toast .tm{font-size:12px;color:var(--muted)}
+.toast .actions{margin-top:4px}
+.kb-cancelled{--kc:var(--now);border-style:solid}
+.blk.cx .bt,.card.cx .ct{text-decoration:line-through;text-decoration-thickness:1.5px;opacity:.75}
+.blk.cx{outline:1.5px solid color-mix(in srgb,var(--now) 70%,transparent);outline-offset:-2px}
+.kc-cancelled{--kc:var(--now)}
 code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:0 4px}
 .loading{display:grid;place-items:center;height:100%;color:var(--muted);font-family:var(--f-mono);font-size:12px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -299,6 +313,7 @@ code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);bor
   <div class="loading" id="loading">Loading the session catalog</div>
 </main>
 <div id="sheetroot"></div>
+<div id="toasts" aria-live="polite"></div>
 
 <script>
 (function(){
@@ -332,7 +347,7 @@ const KIND={
   digital:{label:"Digital lab",filter:"Digital lab"},
   inperson:{label:"",filter:"In-person session"}
 };
-const kindBadge=s=>s.kind&&s.kind!=="inperson"?`<span class="kb kb-${s.kind}">${KIND[s.kind].label}</span>`:"";
+const kindBadge=s=>(s.cancelled?`<span class="kb kb-cancelled">Cancelled</span>`:"")+(s.kind&&s.kind!=="inperson"?`<span class="kb kb-${s.kind}">${KIND[s.kind].label}</span>`:"");
 const isInput=el=>!!el&&(el.tagName==="INPUT"||el.tagName==="TEXTAREA");
 
 // ================= time (always Pacific) =================
@@ -350,9 +365,10 @@ const byTime=(a,b)=>(a.day||"z").localeCompare(b.day||"z")||(a.s||0)-(b.s||0)||a
 const FKEYS=["ty","kd","tp","lv","au","b","dl","tg","rec","my","tt"];
 const ui=(function(){
   const raw=LS("ig-ui")||{};
-  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,f:{}};
+  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,f:{}};
   ["view","day","q"].forEach(k=>{if(typeof raw[k]==="string")u[k]=raw[k]});
-  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
+  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
+  if([5,10,15,30].includes(raw.remLead))u.remLead=raw.remLead;
   if(raw.zv===3&&ZOOM.includes(raw.ppm))u.ppm=raw.ppm;
   const f=raw.f&&typeof raw.f==="object"?raw.f:{};
   FKEYS.forEach(k=>{u.f[k]=Array.isArray(f[k])?f[k].filter(x=>typeof x==="string"):[]});
@@ -419,7 +435,7 @@ function matches(s,n,opt){
   opt=opt||{};const f=ui.f;
   if(ui.q){for(const w of ui.q.toLowerCase().split(/\s+/))if(w&&!s.hay.includes(w))return false}
   if(!opt.ignoreTy&&f.ty.length&&!f.ty.includes(s.ty))return false;
-  if(f.kd.length&&!f.kd.includes(KIND[s.kind].filter))return false;
+  if(f.kd.length&&!(f.kd.includes(KIND[s.kind].filter)||(s.cancelled&&f.kd.includes("Cancelled"))))return false;
   if(f.tp.length&&!s.tp.some(x=>f.tp.includes(x)))return false;
   if(f.lv.length&&!s.lv.some(x=>f.lv.includes(x)))return false;
   if(f.au.length&&!s.au.some(x=>f.au.includes(x)))return false;
@@ -477,6 +493,7 @@ function renderLegend(n){
    +`<span class="lk"><span class="ob" style="opacity:.45;box-shadow:inset 4px 0 0 var(--muted)"></span>Ended</span>`
    +`<span class="lk">${ICON.note}Has notes</span>`
    +`<span class="lsep"></span><span class="lh">Kind</span>`
+   +`<span class="lk"><span class="kb kb-cancelled">Cancelled</span>by Microsoft</span>`
    +`<span class="lk"><span class="kb kb-overflow">Overflow</span>stream of another session</span>`
    +`<span class="lk"><span class="kb kb-online">Online only</span>broadcast, no seated room</span>`
    +`<span class="lk"><span class="kb kb-ondemand">On demand</span>recorded</span>`
@@ -554,7 +571,7 @@ function renderGrid(keepScroll){
   const rowh=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--rowh"))||58;
   const bw=s=>Math.max(18,(s.e-s.s)*ppm-3);
   const flagCount=s=>(my.stars.has(s.k)?1:0)+(isTrk(s)?1:0)+(my.notes.has(s.c)?1:0)+Math.min(3,(sTags.get(s.k)||[]).length);
-  const blockH=(s,pin)=>{const inner=bw(s)-16-flagCount(s)*13;const lines=Math.min(7,titleLines(s.t,Math.max(20,inner)));return 8+lines*15+1+14+(s.spn?14:0)+(pin?14:0)+(s.kind!=="inperson"?21:0)+6};
+  const blockH=(s,pin)=>{const inner=bw(s)-16-flagCount(s)*13;const lines=Math.min(7,titleLines(s.t,Math.max(20,inner)));return 8+lines*15+1+14+(s.spn?14:0)+(pin?14:0)+(s.kind!=="inperson"||s.cancelled?21:0)+6};
   let html=`<div class="gin" style="width:calc(var(--labelw) + ${W}px)"><div class="ghead"><div class="corner">${list.length} session${list.length===1?"":"s"}</div><div class="ticks" style="width:${W}px">`;
   for(let m=t0;m<t1;m+=30)html+=`<div class="tick${m%60?"":" hr"}" style="left:${(m-t0)*ppm}px">${fmtMin(m).replace(":00","")}</div>`;
   html+=`<div class="nowtick" id="nowtick" hidden></div></div></div>`;
@@ -570,9 +587,9 @@ function renderGrid(keepScroll){
     row.items.forEach(s=>{
       const st=my.stars.has(s.k),tk=isTrk(s),nt=my.notes.has(s.c),fc=flagCount(s);
       const flags=sessionTags(s).slice(0,3).map(t=>`<span class="tdot" style="--tg:${tagColor(t)}" title="${esc(t.name)}"></span>`).join("")+(st?`<span class="fstar">${ICON.star}</span>`:"")+(tk?`<span class="ffol">${ICON.user}</span>`:"")+(nt?`<span>${ICON.note}</span>`:"");
-      html+=`<button class="blk ${tclass(s.ty)} k-${s.kind}${st?" star":""}${tk?" trk":""}${statusClasses(s,n)}" data-k="${esc(s.k)}" style="left:${(s.s-t0)*ppm+1}px;width:${bw(s)}px;top:${lane.get(s.k)*lh+3}px;height:${lh-6}px" title="${esc(s.t)}">`
+      html+=`<button class="blk ${tclass(s.ty)} k-${s.kind}${s.cancelled?" cx":""}${st?" star":""}${tk?" trk":""}${statusClasses(s,n)}" data-k="${esc(s.k)}" style="left:${(s.s-t0)*ppm+1}px;width:${bw(s)}px;top:${lane.get(s.k)*lh+3}px;height:${lh-6}px" title="${esc(s.t)}">`
         +(flags?`<span class="flags">${flags}</span>`:"")
-        +(s.kind!=="inperson"?`<span class="kline">${kindBadge(s)}${s.main?` streams ${esc(s.main.c)}`:""}</span>`:"")
+        +(s.kind!=="inperson"||s.cancelled?`<span class="kline">${kindBadge(s)}${s.main?` streams ${esc(s.main.c)}`:""}</span>`:"")
         +`<span class="bt"${fc?` style="padding-right:${fc*13}px"`:""}>${esc(s.t)}</span><span class="bm">${fmtMinShort(s.s)}-${fmtMinShort(s.e)} ${esc(s.c)}</span>`
         +(row.pin?`<span class="bs">${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>`:"")
         +(s.spn?`<span class="bs">${spkLine(s)}</span>`:"")+`</button>`;
@@ -603,7 +620,7 @@ function cardHTML(s,n,extra){
   const spk=s.sp.map(id=>SPK.get(id)).filter(Boolean).map(p=>my.follow.has(p.id)?`<span class="f">${esc(p.n)}</span>`:esc(p.n)).join(", ");
   const when=s.day?`<span class="tm">${extra.showDay?esc(dayLabel(s.day).w)+" ":""}${fmtMinShort(s.s)}-${fmtMinShort(s.e)}</span>`:`<span class="tm">On demand</span>`;
   const tags=sessionTags(s).map(t=>`<span style="--tg:${tagColor(t)};display:inline-flex;align-items:center;gap:4px"><span class="tdot"></span>${esc(t.name)}</span>`).join("");
-  return `<div class="card ${tclass(s.ty)} k-${s.kind}${st?" star":""}${statusClasses(s,n)}" data-card="${esc(s.k)}"><button class="main" data-k="${esc(s.k)}"><span class="ct">${esc(s.t)}</span><span class="cm">${when}${kindBadge(s)}<span class="pill">${esc(s.ty)}</span><span>${esc(s.c)}</span><span>${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>${my.notes.has(s.c)?`<span>${ICON.note}</span>`:""}${tags}</span>${spk?`<span class="cs">${spk}</span>`:""}${extra.warn?`<span class="warn">${esc(extra.warn)}</span>`:""}</button><button class="starbtn" data-star="${esc(s.k)}" aria-pressed="${st}" aria-label="${st?"Unstar":"Star"} ${esc(s.t)}">${ICON.star}</button></div>`;
+  return `<div class="card ${tclass(s.ty)} k-${s.kind}${s.cancelled?" cx":""}${st?" star":""}${statusClasses(s,n)}" data-card="${esc(s.k)}"><button class="main" data-k="${esc(s.k)}"><span class="ct">${esc(s.t)}</span><span class="cm">${when}${kindBadge(s)}<span class="pill">${esc(s.ty)}</span><span>${esc(s.c)}</span><span>${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>${my.notes.has(s.c)?`<span>${ICON.note}</span>`:""}${tags}</span>${spk?`<span class="cs">${spk}</span>`:""}${extra.warn?`<span class="warn">${esc(extra.warn)}</span>`:""}</button><button class="starbtn" data-star="${esc(s.k)}" aria-pressed="${st}" aria-label="${st?"Unstar":"Star"} ${esc(s.t)}">${ICON.star}</button></div>`;
 }
 function overlapMap(list){
   const m=new Map();
@@ -678,12 +695,12 @@ function renderMine(){
   const el=$("#minev"),n=nowPT();
   const starred=[...my.stars].map(k=>byKey.get(k)).filter(Boolean).sort(byTime);
   const conf=overlapMap(starred);
-  let html=`<div class="list"><div class="actions" style="margin-top:8px"><button class="btn" data-import="1"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Import from the Microsoft app</button></div>`;
+  let html=`<div class="list">${reminderCard()}<div class="actions" style="margin-top:8px"><button class="btn" data-import="1"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Import from the Microsoft app</button></div>`;
   html+=`<div class="sec">Starred<small>${starred.length}</small></div>`;
   if(!starred.length)html+=`<p class="hint">Tap the star on any session to add it here, or import the sessions you already picked in the Microsoft Events app. Overlapping picks get flagged.</p>`;
   let cur=null;
   starred.forEach(s=>{const d=s.day||"od";if(d!==cur){cur=d;html+=`<div class="slot">${d==="od"?"On demand":esc(dayLabel(d).long)}</div>`}
-    html+=cardHTML(s,n,{warn:conf.has(s.k)?`Overlaps ${conf.get(s.k).join(", ")}`:""})});
+    html+=cardHTML(s,n,{warn:s.cancelled?"Cancelled by Microsoft":conf.has(s.k)?`Overlaps ${conf.get(s.k).join(", ")}`:""})});
   const fromFol=SES.filter(s=>isTrk(s)&&!my.stars.has(s.k)).sort(byTime);
   html+=`<div class="sec">From speakers you follow<small>${fromFol.length} not starred</small></div>`;
   html+=fromFol.length?fromFol.map(s=>cardHTML(s,n,{showDay:true})).join(""):`<p class="hint">${my.follow.size?"Everything from the speakers you follow is already starred.":"Follow speakers on the Speakers tab to see their sessions here."}</p>`;
@@ -692,6 +709,108 @@ function renderMine(){
   html+=noted.length?noted.map(s=>{const t=my.notes.get(s.c)||"";return `<div class="card ${tclass(s.ty)}"><button class="main" data-k="${esc(s.k)}"><span class="ct">${esc(s.t)}</span><span class="cm"><span>${esc(s.c)}</span></span><span class="cs" style="white-space:pre-wrap">${esc(t.slice(0,240))}${t.length>240?"...":""}</span></button></div>`}).join(""):`<p class="hint">Open a session and type in its Notes box. Notes save as you type.</p>`;
   el.innerHTML=html+`</div>`;
 }
+
+// ================= reminders =================
+// Reminders fire only while this page is open. For alerts with the page closed, the calendar file adds the
+// starred sessions to the phone's own calendar with alarms.
+const IN_CLAUDE=!!(window.claude&&window.claude.use);
+const GH_URL="https://justin-kaminski.github.io/Ignite-explorer/";
+const sysSupported=!IN_CLAUDE&&"Notification" in window&&window.isSecureContext;
+let swReg=null;
+const notified=(()=>{const v=LS("ig-notified");return v&&typeof v==="object"?v:{}})();
+function reminderCard(){
+  const perm=sysSupported?Notification.permission:"unsupported";
+  return `<div class="remcard"><div class="sec" style="margin:4px 0 2px">Reminders</div>
+  <label class="chk"><input type="checkbox" id="remon" ${ui.rem?"checked":""}> Remind me before starred sessions</label>
+  <label class="chk">Remind me <select id="remlead" aria-label="How long before">${[5,10,15,30].map(m=>`<option value="${m}" ${ui.remLead===m?"selected":""}>${m} minutes</option>`).join("")}</select> before</label>
+  ${sysSupported?`<label class="chk"><input type="checkbox" id="remsys" ${ui.remSys&&perm==="granted"?"checked":""} ${perm==="denied"?"disabled":""}> Also show system notifications${perm==="denied"?" (blocked in your browser settings)":""}</label>`:""}
+  <p class="hint" style="margin:0">Reminders show up while this page is open in a tab. Phones pause background tabs, so for alerts with the page closed, add your starred sessions to your calendar.</p>
+  <div class="actions">${IN_CLAUDE
+    ?`<button class="btn" id="copycodes">Copy starred codes</button><a class="btn" href="${GH_URL}" target="_blank" rel="noopener">${ICON.ext}Open the GitHub version</a>`
+    :`<button class="btn" id="icsbtn">Add starred sessions to my calendar</button>`}</div>
+  ${IN_CLAUDE?`<p class="hint" style="margin:0">This claude.ai view can't save calendar files. Copy your starred codes, paste them into Import on the GitHub version, then use its calendar button.</p>`:""}
+  <div class="impstat" id="remstat" role="status"></div></div>`;
+}
+function remStatus(t){const el=$("#remstat");if(el)el.textContent=t}
+function checkReminders(n){
+  if(!ui.rem||!DATA)return;
+  let changed=false;
+  Object.keys(notified).forEach(k=>{if(!k.endsWith("|"+n.day)){delete notified[k];changed=true}});
+  my.stars.forEach(k=>{
+    const s=byKey.get(k);if(!s||s.day!==n.day||s.cancelled)return;
+    const until=s.s-n.min,id=s.k+"|"+n.day;
+    if(until<=ui.remLead&&until>=0&&!notified[id]){notified[id]=1;changed=true;fireReminder(s,until)}
+  });
+  if(changed)LS("ig-notified",notified);
+}
+function fireReminder(s,until){
+  const when=until<=0?"Starting now":`Starts in ${until} min`;
+  const where=[shortB(s.b),s.r].filter(Boolean).join(", ")||"Online";
+  const t=document.createElement("div");t.className="toast";t.setAttribute("role","alert");
+  t.innerHTML=`<div class="tt">${esc(when)} · ${fmtMin(s.s)}</div><div class="tb">${esc(s.t)}</div><div class="tm">${esc(s.c)} · ${esc(where)}</div><div class="actions"><button class="btn primary" data-k="${esc(s.k)}" data-dismiss="1">Open</button><button class="btn" data-dismiss="1">Dismiss</button></div>`;
+  $("#toasts").appendChild(t);
+  if(ui.remSys&&sysSupported&&Notification.permission==="granted"){
+    const opts={body:`${s.t}\n${where}`,tag:"ig-"+s.k,data:{url:location.href.split("#")[0]+"#mine"}};
+    try{if(swReg&&swReg.showNotification)swReg.showNotification(`${when}: ${s.c}`,opts);else new Notification(`${when}: ${s.c}`,opts)}catch(e){}
+  }
+}
+async function ensureSW(){
+  if(swReg||!("serviceWorker" in navigator))return swReg;
+  try{swReg=await navigator.serviceWorker.register("sw.js")}catch(e){swReg=null}
+  return swReg;
+}
+async function setSys(on){
+  if(!on){ui.remSys=false;saveUI();return}
+  try{
+    const p=await Notification.requestPermission();
+    if(p!=="granted"){ui.remSys=false;saveUI();remStatus(p==="denied"?"Notifications are blocked for this site in your browser settings.":"Notifications weren't allowed.");softRender();return}
+    ui.remSys=true;if(!ui.rem)ui.rem=true;saveUI();await ensureSW();remStatus("System notifications are on while this page is open.");softRender();
+  }catch(e){ui.remSys=false;saveUI();remStatus("This browser can't show notifications here.");softRender()}
+}
+// iCalendar export of starred sessions, with an alarm at the reminder lead time.
+function ptToUTC(day,min){
+  const [y,m,d]=day.split("-").map(Number),want=Date.UTC(y,m-1,d,Math.floor(min/60),min%60);let t=want+8*3600e3;
+  for(let i=0;i<2;i++){const p={};ptFull.formatToParts(new Date(t)).forEach(x=>p[x.type]=x.value);t+=want-Date.UTC(+p.year,p.month-1,+p.day,+p.hour,+p.minute)}
+  return new Date(t);
+}
+const icsStamp=dte=>dte.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
+const icsEsc=v=>String(v||"").replace(/\\/g,"\\\\").replace(/\r?\n/g,"\\n").replace(/([,;])/g,"\\$1");
+const icsFold=line=>{let out="",l=line;while(l.length>74){out+=l.slice(0,74)+"\r\n ";l=l.slice(74)}return out+l};
+function buildICS(){
+  const all=[...my.stars].map(k=>byKey.get(k)).filter(s=>s&&s.day);
+  const list=all.filter(s=>!s.cancelled).sort(byTime),skipped=all.length-list.length;
+  const now=icsStamp(new Date()),lead=ui.remLead||10;
+  const lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Ignite Explorer//Starred sessions//EN","CALSCALE:GREGORIAN","X-WR-CALNAME:Ignite starred sessions"];
+  list.forEach(s=>{
+    const where=[s.b,s.r].filter(Boolean).join(", ")||"Online",url="https://ignite.microsoft.com/en-US/sessions/"+s.id;
+    lines.push("BEGIN:VEVENT","UID:"+s.k+"@ignite-explorer","DTSTAMP:"+now,"DTSTART:"+icsStamp(ptToUTC(s.day,s.s)),"DTEND:"+icsStamp(ptToUTC(s.day,s.e)),
+      "SUMMARY:"+icsEsc(`${s.c} | ${s.t}`),"LOCATION:"+icsEsc(where),"URL:"+url,"DESCRIPTION:"+icsEsc(`${s.ty}${s.kind!=="inperson"?" ("+KIND[s.kind].label+")":""}\n${s.spn||""}\n${url}`),
+      "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsEsc(s.t),"TRIGGER:-PT"+lead+"M","END:VALARM","END:VEVENT");
+  });
+  lines.push("END:VCALENDAR");
+  return {text:lines.map(icsFold).join("\r\n")+"\r\n",count:list.length,skipped};
+}
+function downloadICS(){
+  const {text,count,skipped}=buildICS();
+  if(!count){remStatus("Star some sessions first.");return}
+  const url=URL.createObjectURL(new Blob([text],{type:"text/calendar"}));
+  const a=document.createElement("a");a.href=url;a.download="ignite-starred-sessions.ics";document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+  remStatus(`Saved ${count} session${count===1?"":"s"} with a ${ui.remLead||10}-minute alarm${skipped?` (skipped ${skipped} cancelled)`:""}. Open the file to add them to your calendar. Download it again after starring more; your calendar app updates matching entries or adds them again, depending on the app.`);
+}
+async function copyCodes(){
+  const codes=[...my.stars].map(k=>byKey.get(k)).filter(Boolean).sort(byTime).map(s=>s.c);
+  if(!codes.length){remStatus("Star some sessions first.");return}
+  const txt=[...new Set(codes)].join(", ");
+  try{await navigator.clipboard.writeText(txt);remStatus(`Copied ${codes.length} codes. Paste them into Import on the GitHub version.`)}
+  catch(e){remStatus("Copy didn't work here. Select and copy: "+txt)}
+}
+document.addEventListener("change",e=>{
+  const t=e.target;
+  if(t.id==="remon"){ui.rem=t.checked;saveUI();if(ui.rem){checkReminders(nowPT());remStatus(`Reminders on: ${ui.remLead} minutes before each starred session while this page is open.`)}else remStatus("Reminders off.")}
+  if(t.id==="remlead"){ui.remLead=+t.value;saveUI();checkReminders(nowPT())}
+  if(t.id==="remsys")setSys(t.checked);
+});
 
 // ================= render loop =================
 function render(opts){
@@ -726,6 +845,7 @@ function tick(){
   const n=nowPT();
   if(lastTickDay&&lastTickDay!==n.day){lastTickDay=n.day;if(!isInput(document.activeElement))render();return}
   lastTickDay=n.day;
+  checkReminders(n);
   if(ui.hidePast&&!isInput(document.activeElement)&&!openSheet){render();return}
   placeNow(n);
   document.querySelectorAll("[data-card],.blk[data-k]").forEach(el=>{
@@ -787,6 +907,7 @@ function sessionBody(s){
 }
 function kindCallout(s){
   const room=x=>esc([x.b,x.r].filter(Boolean).join(", ")||"Online");
+  if(s.cancelled)return `<div class="callout kc-cancelled"><b>Cancelled.</b> Microsoft marked this session as cancelled in the catalog.</div>`;
   if(s.kind==="overflow"&&s.main)return `<div class="callout kc-overflow"><b>Overflow viewing room.</b> This room shows a live stream of <button class="linkbtn" data-k="${esc(s.main.k)}">${esc(s.main.c)}: ${esc(s.main.t)}</button>, which runs at the same time in ${room(s.main)}. The speakers are in the main room; this room is for when that one is full.</div>`;
   if(s.kind==="overflow")return `<div class="callout kc-overflow"><b>Overflow viewing room.</b> This room shows a live stream of another session; the speakers are not here in person.</div>`;
   if(s.kind==="online")return `<div class="callout kc-online"><b>Online only.</b> Microsoft lists this as an online broadcast from ${room(s)}, not a seated session room. Watch it on the Ignite website or the Broadcast Stage screens.</div>`;
@@ -830,7 +951,7 @@ function filterBody(){
   const recC=[{v:"Recorded",c:SES.filter(s=>s.rec).length},{v:"Not recorded",c:SES.filter(s=>!s.rec).length}];
   return `<div class="actions"><button class="btn primary" data-close="1">Show ${M.length} sessions</button><button class="btn" data-fclear="1">Clear filters</button></div>
   <div class="fgroup"><h3>My tags</h3><div class="tags">${my.tags.map(t=>`<button class="tagb" data-fk="my" data-fv="${esc(t.id)}" aria-pressed="${f.my.includes(t.id)}"><span class="tdot" style="--tg:${tagColor(t)};margin-right:5px"></span>${esc(t.name)}<small>${tagCount(t.id)}</small></button>`).join("")}<button class="tagb" data-opentags="1">${my.tags.length?"Edit my tags":"+ Create a tag"}</button></div></div>
-  ${grp("Kind","kd",Object.values(KIND).map(k=>({v:k.filter,c:SES.filter(s=>KIND[s.kind].filter===k.filter).length})).filter(x=>x.c))}
+  ${grp("Kind","kd",Object.values(KIND).map(k=>({v:k.filter,c:SES.filter(s=>KIND[s.kind].filter===k.filter).length})).concat([{v:"Cancelled",c:SES.filter(s=>s.cancelled).length}]).filter(x=>x.c))}
   ${grp("Session type","ty",facet("ty",true))}
   ${grp("Topic","tp",facet("tp"))}
   <div class="fgroup"><h3>Tags</h3>${f.tt.length?`<p class="hint" style="margin:0 0 6px">Typed tag words: ${f.tt.map(t=>`"${esc(t)}"`).join(", ")}. Edit them in the Tag list.</p>`:""}<p class="hint" style="margin:0 0 6px">Tags, your tags and typed tag words combine using <b>${ui.tagAll?"Match all":"Match any"}</b>, set in the Tag list.</p><input id="tagq" type="search" placeholder="Search ${TAGLIST.length} tags" aria-label="Search tags" autocomplete="off"><div class="tags" id="ftags">${filterTagsHTML("")}</div></div>
@@ -1083,6 +1204,7 @@ function toggleIn(arr,v){const i=arr.indexOf(v);i>=0?arr.splice(i,1):arr.push(v)
 document.addEventListener("click",e=>{
   const t=e.target.closest("button,[data-close]");if(!t)return;
   const d=t.dataset;
+  if(d.dismiss){const tt=t.closest(".toast");if(tt)tt.remove();if(!d.k)return}
   if(d.close){closeSheet();return}
   if(d.star){toggleStar(d.star);return}
   if(d.fol){toggleFollow(d.fol);return}
@@ -1110,6 +1232,8 @@ document.addEventListener("click",e=>{
     case "impfind":findFromText();return;
     case "impicsgo":readICSFile();return;
     case "impstar":starImported();return;
+    case "icsbtn":downloadICS();return;
+    case "copycodes":copyCodes();return;
   }
 });
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&openSheet)closeSheet()});
@@ -1261,6 +1385,8 @@ function prep(d){
     const base=/O$/.test(s.c)?byCode.get(s.c.slice(0,-1)):null;
     s.kind=!s.day?(s.ty==="Digital Lab"?"digital":"ondemand"):base?"overflow":(s.dl.length&&!s.dl.includes("In-person")?"online":"inperson");
     if(base){s.main=base.find(m=>m.day===s.day&&m.s===s.s)||base[0];(s.main.overflows||(s.main.overflows=[])).push(s)}
+    const cm=s.t.match(/^\s*(cancell?ed)\s*[:\-–]\s*/i);
+    if(cm){s.cancelled=true;s.t=s.t.slice(cm[0].length);s.hay+=" cancelled canceled"}
     if(s.kind!=="inperson")s.hay+=" "+KIND[s.kind].label.toLowerCase();
   });
   SES=d.sessions;
@@ -1280,7 +1406,8 @@ function prep(d){
 store.init().then(()=>{if(DATA)softRender()});
 initSample();
 fetch("data.json").then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(d=>{
-  prep(d);route();
+  prep(d);route();checkReminders(nowPT());
+  if(ui.remSys&&sysSupported&&Notification.permission==="granted")ensureSW();
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{lineCache.clear();softRender()});
 }).catch(err=>{const ld=$("#loading");if(ld)ld.textContent="Couldn't load the session catalog ("+err.message+"). Reload the page to try again."});
 })();
