@@ -871,8 +871,12 @@ function importBody(){
   const img=sampleFn&&imageLimits;
   return `<p class="hint" style="margin:0">Add the sessions you already picked in the Microsoft Events app. Agenda items such as badge pickup and lunch are not catalog sessions, so they are skipped. You get to review the matches before anything is starred.</p>
   <div class="imp"><div class="sec" style="margin:4px 0 0">From your Ignite calendar file (most accurate)</div>
-  <p class="hint" style="margin:0">On the Ignite website, sign in and open My Schedule, then use the option to sync or download your schedule to a calendar. Open that link in your browser to save the calendar file (.ics), then pick it here. You can also paste the file's text in the text box below.</p>
-  <input type="file" id="impics" accept=".ics,text/calendar"><div class="actions"><button class="btn primary" id="impicsgo">Read calendar file</button></div>
+  <ol class="hint" style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px">
+    <li>Open <a href="https://ignite.microsoft.com/en-US/schedule" target="_blank" rel="noopener">My Schedule on the Ignite website</a> and sign in.</li>
+    <li>Tap the download button (the down arrow). If you don't see it, tap your profile picture at the top right; the panel that opens has My schedule with the download button under the day picker.</li>
+    <li>Save the calendar file (.ics) it gives you, then pick it below. If it opens as text instead, copy all of it into the text box further down.</li>
+  </ol>
+  <input type="file" id="impics" accept=".ics,text/calendar"><div class="actions"><button class="btn primary" id="impicsgo">Read calendar file</button><a class="btn" href="https://ignite.microsoft.com/en-US/schedule" target="_blank" rel="noopener">${ICON.ext}Open Ignite My Schedule</a></div>
   <div class="sec" style="margin:8px 0 0">From screenshots</div>${img
     ?`<p class="hint" style="margin:0">Take screenshots of My Schedule in the Microsoft app, one per day is fine, then pick them here. Claude reads the session codes from them using your Claude account.</p><input type="file" id="impfiles" accept="${esc(imageLimits.mediaTypes.join(","))}" multiple><div class="actions"><button class="btn primary" id="impread">Read screenshots</button><button class="btn" id="impstop" hidden>Stop</button></div>`
     :`<p class="hint" style="margin:0">Reading screenshots works in the claude.ai version of this page. Here, type or paste the session codes instead.</p>`}

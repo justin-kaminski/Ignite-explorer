@@ -17,7 +17,7 @@ This is an independent, unofficial tool. Session data comes from Microsoft's pub
 - **My schedule:** starred sessions with overlaps flagged, sessions from followed speakers, and notes.
 - **Notes:** per-session notes that save as you type.
 - **Import your existing schedule:** three ways, and you review the matches before anything is starred.
-  - Calendar file (most accurate): on the Ignite website, sign in, open My Schedule and use its option to sync or download your schedule to a calendar. Open that link in a browser to save the `.ics` file, then pick it in the import panel. It is read entirely in the page.
+  - Calendar file (most accurate): open https://ignite.microsoft.com/en-US/schedule and sign in, then tap the download (down arrow) button. If it isn't there, tap your profile picture at the top right; the panel has My schedule with the download button under the day picker. Save the `.ics` file and pick it in the import panel. It is read entirely in the page.
   - Codes or titles: paste or type them, for example `BRK543, THR920`.
   - Screenshots (claude.ai version only): pick screenshots of My Schedule from the Microsoft Events app and Claude reads the session codes from them.
 
