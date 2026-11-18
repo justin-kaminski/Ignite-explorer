@@ -11,6 +11,7 @@ This is an independent, unofficial tool. Session data comes from Microsoft's pub
 - **Search:** titles, speakers, tags, session codes and descriptions.
 - **Filters:** session type, topic, level, audience, venue, in-person or online, recorded, and all of Microsoft's tags.
 - **Color key:** one chip per session type with a count; tap to filter by type.
+- **Session kinds called out:** every catalog entry is shown, and the ones that are not ordinary in-person sessions are labeled. Overflow viewing rooms (codes ending in O, a live stream of another session) are hatched and link to the main session, which lists its overflow rooms. Online-only broadcasts get a dashed outline. On-demand recordings and digital labs are labeled too. The Filters sheet has a Kind group to narrow by these.
 - **Tag list:** type tag words (for example `github copilot, azure, ai`) or pick tags, then match any or all of them.
 - **My tags:** create your own tags from keywords. They apply automatically to every matching session. Prefixes such as `title:`, `speaker:`, `type:` and `level:` target one field, and `-word` excludes. Tags can also be added or removed on a single session.
 - **Speakers:** search all speakers and follow them. Their sessions get a pink outline and their names show in pink.

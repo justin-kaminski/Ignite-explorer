@@ -51,6 +51,7 @@ header.top{background:var(--surface);border-bottom:1px solid var(--line);display
 .brand{font-family:var(--f-display);font-weight:700;font-size:22px;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;line-height:1}
 .brand small{display:block;font-family:var(--f-mono);font-weight:400;font-size:10px;letter-spacing:.06em;color:var(--muted);text-transform:none;margin-top:3px}
 .search{flex:1;min-width:0;position:relative}
+#q::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
 .search input{width:100%;height:36px;border:1px solid var(--line);background:var(--surface2);border-radius:8px;padding:0 32px 0 32px}
 .search svg{position:absolute;left:9px;top:10px;color:var(--muted)}
 .search button{position:absolute;right:4px;top:4px;width:28px;height:28px;border:0;background:none;color:var(--muted);border-radius:6px;display:grid;place-items:center}
@@ -233,6 +234,16 @@ main{flex:1;min-height:0;position:relative}
 .irow .ct{font-weight:600}
 .irow .cm{font-size:12px;color:var(--muted)}
 .miss{font-size:12.5px;color:var(--muted)}
+.kb{display:inline-block;font-family:var(--f-mono);font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;line-height:14px;border-radius:3px;padding:0 4px;border:1px dashed var(--kc);color:var(--kc);background:color-mix(in srgb,var(--kc) 12%,var(--surface));white-space:nowrap;flex:none}
+.kb-overflow{--kc:var(--muted)} .kb-online{--kc:var(--c-inv)} .kb-ondemand{--kc:var(--c-oth)} .kb-digital{--kc:var(--c-lab)}
+.blk .kline{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;margin-bottom:2px;min-height:15px}
+.blk.k-overflow{border-left-style:dashed;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--tc) 14%,var(--surface)) 0 7px,var(--surface) 7px 14px)}
+.blk.k-online{outline:1.5px dashed var(--c-inv);outline-offset:-2px}
+.card.k-overflow{border-left-style:dashed;background:repeating-linear-gradient(135deg,var(--surface) 0 9px,var(--surface2) 9px 18px)}
+.card.k-online,.card.k-ondemand,.card.k-digital{border-style:dashed;border-left-style:solid}
+.callout{border:1px dashed var(--kc,var(--line));border-left:4px solid var(--kc,var(--line));background:color-mix(in srgb,var(--kc,var(--muted)) 10%,var(--surface));border-radius:8px;padding:9px 11px;font-size:13px;line-height:1.45}
+.kc-overflow{--kc:var(--muted)} .kc-online{--kc:var(--c-inv)} .kc-ondemand{--kc:var(--c-oth)} .kc-digital{--kc:var(--c-lab)} .kc-main{--kc:var(--accent)}
+.linkbtn{border:0;background:none;padding:0;color:var(--focus);text-decoration:underline;text-align:left;font:inherit;cursor:pointer}
 code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:0 4px}
 .loading{display:grid;place-items:center;height:100%;color:var(--muted);font-family:var(--f-mono);font-size:12px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -313,6 +324,15 @@ const TAGC=["--c-brk","--c-tt","--c-lab","--c-bc","--c-lt","--c-inv","--c-key","
 const ZOOM=[3,4,5,6,8,10,12];
 const shortB=b=>({"AMC Metreon":"Metreon","Marriott Marquis":"Marriott"}[b]||b||"Online");
 const tclass=ty=>"t-"+String(ty||"Other").split(" ")[0].replace(/[^A-Za-z-]/g,"");
+// Session kinds Microsoft mixes into the catalog. Everything stays visible; these get labels and callouts.
+const KIND={
+  overflow:{label:"Overflow",filter:"Overflow viewing"},
+  online:{label:"Online only",filter:"Online only"},
+  ondemand:{label:"On demand",filter:"On demand"},
+  digital:{label:"Digital lab",filter:"Digital lab"},
+  inperson:{label:"",filter:"In-person session"}
+};
+const kindBadge=s=>s.kind&&s.kind!=="inperson"?`<span class="kb kb-${s.kind}">${KIND[s.kind].label}</span>`:"";
 const isInput=el=>!!el&&(el.tagName==="INPUT"||el.tagName==="TEXTAREA");
 
 // ================= time (always Pacific) =================
@@ -327,7 +347,7 @@ const isLive=(s,n)=>s.day===n.day&&s.s<=n.min&&s.e>n.min;
 const byTime=(a,b)=>(a.day||"z").localeCompare(b.day||"z")||(a.s||0)-(b.s||0)||a.t.localeCompare(b.t);
 
 // ================= view state (this browser only) =================
-const FKEYS=["ty","tp","lv","au","b","dl","tg","rec","my","tt"];
+const FKEYS=["ty","kd","tp","lv","au","b","dl","tg","rec","my","tt"];
 const ui=(function(){
   const raw=LS("ig-ui")||{};
   const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,f:{}};
@@ -399,6 +419,7 @@ function matches(s,n,opt){
   opt=opt||{};const f=ui.f;
   if(ui.q){for(const w of ui.q.toLowerCase().split(/\s+/))if(w&&!s.hay.includes(w))return false}
   if(!opt.ignoreTy&&f.ty.length&&!f.ty.includes(s.ty))return false;
+  if(f.kd.length&&!f.kd.includes(KIND[s.kind].filter))return false;
   if(f.tp.length&&!s.tp.some(x=>f.tp.includes(x)))return false;
   if(f.lv.length&&!s.lv.some(x=>f.lv.includes(x)))return false;
   if(f.au.length&&!s.au.some(x=>f.au.includes(x)))return false;
@@ -455,6 +476,11 @@ function renderLegend(n){
    +`<span class="lk"><span style="color:var(--now);font-family:var(--f-mono);font-weight:600;font-size:11px">LIVE</span>on now</span>`
    +`<span class="lk"><span class="ob" style="opacity:.45;box-shadow:inset 4px 0 0 var(--muted)"></span>Ended</span>`
    +`<span class="lk">${ICON.note}Has notes</span>`
+   +`<span class="lsep"></span><span class="lh">Kind</span>`
+   +`<span class="lk"><span class="kb kb-overflow">Overflow</span>stream of another session</span>`
+   +`<span class="lk"><span class="kb kb-online">Online only</span>broadcast, no seated room</span>`
+   +`<span class="lk"><span class="kb kb-ondemand">On demand</span>recorded</span>`
+   +`<span class="lk"><span class="kb kb-digital">Digital lab</span>self-paced online</span>`
    +(my.tags.length?`<span class="lk"><span class="tdot" style="--tg:var(--c-brk)"></span>My tag</span>`:"")
    +(ui.f.ty.length?`<button class="tog" data-clearty="1" style="flex:none">Show all types</button>`:"");
   $("#legend").innerHTML=h;
@@ -528,7 +554,7 @@ function renderGrid(keepScroll){
   const rowh=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--rowh"))||58;
   const bw=s=>Math.max(18,(s.e-s.s)*ppm-3);
   const flagCount=s=>(my.stars.has(s.k)?1:0)+(isTrk(s)?1:0)+(my.notes.has(s.c)?1:0)+Math.min(3,(sTags.get(s.k)||[]).length);
-  const blockH=(s,pin)=>{const inner=bw(s)-16-flagCount(s)*13;const lines=Math.min(7,titleLines(s.t,Math.max(20,inner)));return 8+lines*15+1+14+(s.spn?14:0)+(pin?14:0)+4};
+  const blockH=(s,pin)=>{const inner=bw(s)-16-flagCount(s)*13;const lines=Math.min(7,titleLines(s.t,Math.max(20,inner)));return 8+lines*15+1+14+(s.spn?14:0)+(pin?14:0)+(s.kind!=="inperson"?21:0)+6};
   let html=`<div class="gin" style="width:calc(var(--labelw) + ${W}px)"><div class="ghead"><div class="corner">${list.length} session${list.length===1?"":"s"}</div><div class="ticks" style="width:${W}px">`;
   for(let m=t0;m<t1;m+=30)html+=`<div class="tick${m%60?"":" hr"}" style="left:${(m-t0)*ppm}px">${fmtMin(m).replace(":00","")}</div>`;
   html+=`<div class="nowtick" id="nowtick" hidden></div></div></div>`;
@@ -544,8 +570,9 @@ function renderGrid(keepScroll){
     row.items.forEach(s=>{
       const st=my.stars.has(s.k),tk=isTrk(s),nt=my.notes.has(s.c),fc=flagCount(s);
       const flags=sessionTags(s).slice(0,3).map(t=>`<span class="tdot" style="--tg:${tagColor(t)}" title="${esc(t.name)}"></span>`).join("")+(st?`<span class="fstar">${ICON.star}</span>`:"")+(tk?`<span class="ffol">${ICON.user}</span>`:"")+(nt?`<span>${ICON.note}</span>`:"");
-      html+=`<button class="blk ${tclass(s.ty)}${st?" star":""}${tk?" trk":""}${statusClasses(s,n)}" data-k="${esc(s.k)}" style="left:${(s.s-t0)*ppm+1}px;width:${bw(s)}px;top:${lane.get(s.k)*lh+3}px;height:${lh-6}px" title="${esc(s.t)}">`
+      html+=`<button class="blk ${tclass(s.ty)} k-${s.kind}${st?" star":""}${tk?" trk":""}${statusClasses(s,n)}" data-k="${esc(s.k)}" style="left:${(s.s-t0)*ppm+1}px;width:${bw(s)}px;top:${lane.get(s.k)*lh+3}px;height:${lh-6}px" title="${esc(s.t)}">`
         +(flags?`<span class="flags">${flags}</span>`:"")
+        +(s.kind!=="inperson"?`<span class="kline">${kindBadge(s)}${s.main?` streams ${esc(s.main.c)}`:""}</span>`:"")
         +`<span class="bt"${fc?` style="padding-right:${fc*13}px"`:""}>${esc(s.t)}</span><span class="bm">${fmtMinShort(s.s)}-${fmtMinShort(s.e)} ${esc(s.c)}</span>`
         +(row.pin?`<span class="bs">${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>`:"")
         +(s.spn?`<span class="bs">${spkLine(s)}</span>`:"")+`</button>`;
@@ -572,7 +599,7 @@ function cardHTML(s,n,extra){
   const spk=s.sp.map(id=>SPK.get(id)).filter(Boolean).map(p=>my.follow.has(p.id)?`<span class="f">${esc(p.n)}</span>`:esc(p.n)).join(", ");
   const when=s.day?`<span class="tm">${extra.showDay?esc(dayLabel(s.day).w)+" ":""}${fmtMinShort(s.s)}-${fmtMinShort(s.e)}</span>`:`<span class="tm">On demand</span>`;
   const tags=sessionTags(s).map(t=>`<span style="--tg:${tagColor(t)};display:inline-flex;align-items:center;gap:4px"><span class="tdot"></span>${esc(t.name)}</span>`).join("");
-  return `<div class="card ${tclass(s.ty)}${st?" star":""}${statusClasses(s,n)}" data-card="${esc(s.k)}"><button class="main" data-k="${esc(s.k)}"><span class="ct">${esc(s.t)}</span><span class="cm">${when}<span class="pill">${esc(s.ty)}</span><span>${esc(s.c)}</span><span>${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>${my.notes.has(s.c)?`<span>${ICON.note}</span>`:""}${tags}</span>${spk?`<span class="cs">${spk}</span>`:""}${extra.warn?`<span class="warn">${esc(extra.warn)}</span>`:""}</button><button class="starbtn" data-star="${esc(s.k)}" aria-pressed="${st}" aria-label="${st?"Unstar":"Star"} ${esc(s.t)}">${ICON.star}</button></div>`;
+  return `<div class="card ${tclass(s.ty)} k-${s.kind}${st?" star":""}${statusClasses(s,n)}" data-card="${esc(s.k)}"><button class="main" data-k="${esc(s.k)}"><span class="ct">${esc(s.t)}</span><span class="cm">${when}${kindBadge(s)}<span class="pill">${esc(s.ty)}</span><span>${esc(s.c)}</span><span>${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>${my.notes.has(s.c)?`<span>${ICON.note}</span>`:""}${tags}</span>${spk?`<span class="cs">${spk}</span>`:""}${extra.warn?`<span class="warn">${esc(extra.warn)}</span>`:""}</button><button class="starbtn" data-star="${esc(s.k)}" aria-pressed="${st}" aria-label="${st?"Unstar":"Star"} ${esc(s.t)}">${ICON.star}</button></div>`;
 }
 function overlapMap(list){
   const m=new Map();
@@ -731,7 +758,7 @@ function sessionBody(s){
   const when=s.day?`${dayLabel(s.day).long}, ${fmtMin(s.s)} to ${fmtMin(s.e)} PT (${s.e-s.s} min)`:"On demand / online";
   const others=(byCode.get(s.c)||[]).filter(x=>x.k!==s.k);
   const vid=/^https:\/\//i.test(s.vid||"")?s.vid:"";
-  let h=`<div class="actions"><button class="btn${st?" primary":""}" data-star="${esc(s.k)}" aria-pressed="${st}">${ICON.star}${st?"Starred":"Star"}</button><a class="btn" href="https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}" target="_blank" rel="noopener">${ICON.ext}Official page</a>${vid?`<a class="btn" href="${esc(vid)}" target="_blank" rel="noopener">${ICON.play}Recording</a>`:""}</div>`;
+  let h=kindCallout(s)+`<div class="actions"><button class="btn${st?" primary":""}" data-star="${esc(s.k)}" aria-pressed="${st}">${ICON.star}${st?"Starred":"Star"}</button><a class="btn" href="https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}" target="_blank" rel="noopener">${ICON.ext}Official page</a>${vid?`<a class="btn" href="${esc(vid)}" target="_blank" rel="noopener">${ICON.play}Recording</a>`:""}</div>`;
   h+=`<dl class="kv"><dt>When</dt><dd>${esc(when)}${isLive(s,n)?` <b style="color:var(--now)">LIVE NOW</b>`:""}</dd><dt>Where</dt><dd>${esc([s.b,s.r].filter(Boolean).join(", ")||"Online")}</dd><dt>Code</dt><dd>${esc(s.c)}</dd><dt>Type</dt><dd><span class="pill ${tclass(s.ty)}">${esc(s.ty)}</span></dd>`
     +(s.lv.length?`<dt>Level</dt><dd>${esc(s.lv.join(", "))}</dd>`:"")+(s.tp.length?`<dt>Topic</dt><dd>${esc(s.tp.join(", "))}</dd>`:"")+(s.au.length?`<dt>For</dt><dd>${esc(s.au.join(", "))}</dd>`:"")
     +`<dt>Format</dt><dd>${esc(s.dl.join(", "))}${s.rec?", recorded":", not recorded"}${s.seat?", "+esc(s.seat.toLowerCase()):""}</dd>`
@@ -747,6 +774,16 @@ function sessionBody(s){
   if(s.d)h+=`<div class="desc">${esc(s.d)}</div>`;
   if(s.tg.length)h+=`<div><div class="sec" style="margin-top:0">Tags<small>tap to filter</small></div><div class="tags">${s.tg.map(t=>`<button class="tagb" data-fk="tg" data-fv="${esc(t)}" aria-pressed="${ui.f.tg.includes(t)}">${esc(t)}</button>`).join("")}</div></div>`;
   return h;
+}
+function kindCallout(s){
+  const room=x=>esc([x.b,x.r].filter(Boolean).join(", ")||"Online");
+  if(s.kind==="overflow"&&s.main)return `<div class="callout kc-overflow"><b>Overflow viewing room.</b> This room shows a live stream of <button class="linkbtn" data-k="${esc(s.main.k)}">${esc(s.main.c)}: ${esc(s.main.t)}</button>, which runs at the same time in ${room(s.main)}. The speakers are in the main room; this room is for when that one is full.</div>`;
+  if(s.kind==="overflow")return `<div class="callout kc-overflow"><b>Overflow viewing room.</b> This room shows a live stream of another session; the speakers are not here in person.</div>`;
+  if(s.kind==="online")return `<div class="callout kc-online"><b>Online only.</b> Microsoft lists this as an online broadcast from ${room(s)}, not a seated session room. Watch it on the Ignite website or the Broadcast Stage screens.</div>`;
+  if(s.kind==="ondemand")return `<div class="callout kc-ondemand"><b>On demand.</b> Pre-recorded content to watch online any time. It has no time slot or room.</div>`;
+  if(s.kind==="digital")return `<div class="callout kc-digital"><b>Digital lab.</b> A self-paced online lab. It has no time slot or room.</div>`;
+  if(s.overflows&&s.overflows.length)return `<div class="callout kc-main"><b>Overflow rooms</b> show a live stream of this session if the room is full: ${s.overflows.map(o=>`<button class="linkbtn" data-k="${esc(o.k)}">${room(o)}</button>`).join(", ")}.</div>`;
+  return "";
 }
 let noteTimer=null,notePending=null;
 function bindNote(s){
@@ -783,6 +820,7 @@ function filterBody(){
   const recC=[{v:"Recorded",c:SES.filter(s=>s.rec).length},{v:"Not recorded",c:SES.filter(s=>!s.rec).length}];
   return `<div class="actions"><button class="btn primary" data-close="1">Show ${M.length} sessions</button><button class="btn" data-fclear="1">Clear filters</button></div>
   <div class="fgroup"><h3>My tags</h3><div class="tags">${my.tags.map(t=>`<button class="tagb" data-fk="my" data-fv="${esc(t.id)}" aria-pressed="${f.my.includes(t.id)}"><span class="tdot" style="--tg:${tagColor(t)};margin-right:5px"></span>${esc(t.name)}<small>${tagCount(t.id)}</small></button>`).join("")}<button class="tagb" data-opentags="1">${my.tags.length?"Edit my tags":"+ Create a tag"}</button></div></div>
+  ${grp("Kind","kd",Object.values(KIND).map(k=>({v:k.filter,c:SES.filter(s=>KIND[s.kind].filter===k.filter).length})).filter(x=>x.c))}
   ${grp("Session type","ty",facet("ty",true))}
   ${grp("Topic","tp",facet("tp"))}
   <div class="fgroup"><h3>Tags</h3>${f.tt.length?`<p class="hint" style="margin:0 0 6px">Typed tag words: ${f.tt.map(t=>`"${esc(t)}"`).join(", ")}. Edit them in the Tag list.</p>`:""}<p class="hint" style="margin:0 0 6px">Tags, your tags and typed tag words combine using <b>${ui.tagAll?"Match all":"Match any"}</b>, set in the Tag list.</p><input id="tagq" type="search" placeholder="Search ${TAGLIST.length} tags" aria-label="Search tags" autocomplete="off"><div class="tags" id="ftags">${filterTagsHTML("")}</div></div>
@@ -1208,6 +1246,13 @@ function prep(d){
     if(s.id){if(!byId.has(s.id))byId.set(s.id,[]);byId.get(s.id).push(s)}
   });
   byCode.forEach(v=>v.sort(byTime));
+  SES=d.sessions;
+  SES.forEach(s=>{
+    const base=/O$/.test(s.c)?byCode.get(s.c.slice(0,-1)):null;
+    s.kind=!s.day?(s.ty==="Digital Lab"?"digital":"ondemand"):base?"overflow":(s.dl.length&&!s.dl.includes("In-person")?"online":"inperson");
+    if(base){s.main=base.find(m=>m.day===s.day&&m.s===s.s)||base[0];(s.main.overflows||(s.main.overflows=[])).push(s)}
+    if(s.kind!=="inperson")s.hay+=" "+KIND[s.kind].label.toLowerCase();
+  });
   SES=d.sessions;
   const tm=new Map();SES.forEach(s=>s.tg.forEach(t=>tm.set(t,(tm.get(t)||0)+1)));
   TAGLIST=[...tm].map(([v,c])=>({v,c})).sort((a,b)=>b.c-a.c||a.v.localeCompare(b.v));
