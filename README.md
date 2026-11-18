@@ -1,4 +1,4 @@
-# Ignite Session Guide
+# Ignite Explorer
 
 A TV-guide style browser for the Microsoft Ignite 2026 session catalog (San Francisco, Nov 16-20, 2026). Rooms run down the left, time runs across the top, and a "now" line shows what is on. Built because the official Microsoft Events Android app is hard to use for finding sessions.
 
@@ -31,16 +31,15 @@ All times are Pacific, the event's time zone.
 
 ## Running it
 
-It is a static page: `index.html` plus `data.json`. Serve the folder with any static web server, for example:
+It is a static page: `index.html` plus `data.json`. Serve the repository root with any static web server, for example:
 
 ```
-cd ignite-guide
 python3 -m http.server 8000
 ```
 
 then open http://localhost:8000. Opening `index.html` directly from disk does not work because the browser blocks loading `data.json` from a `file://` page.
 
-To host it on GitHub Pages, publish this repository (or this folder) with Pages; the page needs no build step.
+To host it on GitHub Pages: Settings > Pages, source "Deploy from a branch", branch `main`, folder `/ (root)`. No build step is needed.
 
 ## Refreshing the session data
 
