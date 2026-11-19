@@ -32,6 +32,8 @@ This is an independent, unofficial tool. Session data comes from Microsoft's pub
   - Codes or titles: paste or type them, for example `BRK543, THR920`.
   - Screenshots (claude.ai version only): pick screenshots of My Schedule from the Microsoft Events app and Claude reads the session codes from them.
 
+- **1999 mode:** the 1999 button in the header switches to a GeoCities-style homepage look (starfield, marquee, under-construction stripe, visitor counter, beveled buttons). It is remembered per device, and the reduce-motion setting turns off its animations.
+
 All times are Pacific, the event's time zone.
 
 ## Where your data is saved

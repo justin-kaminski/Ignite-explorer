@@ -6,7 +6,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- Standalone copy of Ignite Explorer. Generated from the claude.ai version; data loads from data.json. -->
-<link rel="stylesheet" href="fonts.css?v=0730c5c8e6">
+<link rel="stylesheet" href="fonts.css?v=41aa5dfbfa">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
 <title>Ignite Session Guide</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -309,6 +309,71 @@ main{flex:1;min-height:0;position:relative}
 .tchip.st-keep .tflip{color:var(--c-lab);font-weight:600}
 .tchip.st-hide{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--now) 70%,transparent)}
 .tchip.st-hide .tflip{color:var(--now);font-weight:600}
+
+/* ===== 1999 mode (GeoCities homepage look) ===== */
+.geo-only{display:none}
+#geobtn .geolbl{font-family:var(--f-mono);font-size:11px;font-weight:600;letter-spacing:.02em}
+#geobtn[aria-pressed="true"]{background:#ff00ff;color:#fff;border-color:#ff00ff}
+body.geo{
+  --bg:#000040;--surface:#c0c0c0;--surface2:#d8d8d8;--ink:#000000;--muted:#303030;--line:#808080;
+  --accent:#ff00ff;--accent-ink:#ffffff;--follow:#0000ee;--now:#ff0000;--focus:#ffff00;
+  --c-key:#ff8800;--c-brk:#0000ff;--c-thr:#008080;--c-lt:#800080;--c-tt:#ff0080;--c-lab:#008000;--c-bc:#ff4400;--c-inv:#0088ff;--c-oth:#606060;
+  --f-display:"Times New Roman",Times,serif;--f-body:"Comic Sans MS","Comic Sans","Chalkboard SE","Comic Neue",cursive,sans-serif;--f-mono:"Courier New",Courier,monospace;
+  color-scheme:light;
+  background-color:#000040;
+  background-image:
+    radial-gradient(1.5px 1.5px at 20px 30px,#fff 98%,transparent),radial-gradient(1px 1px at 90px 80px,#ffff99 98%,transparent),
+    radial-gradient(1.5px 1.5px at 150px 20px,#fff 98%,transparent),radial-gradient(1px 1px at 60px 140px,#99ffff 98%,transparent),
+    radial-gradient(2px 2px at 170px 160px,#fff 98%,transparent),radial-gradient(1px 1px at 120px 110px,#fff 98%,transparent);
+  background-size:200px 200px;
+}
+body.geo::before{background:#000040}
+body.geo .geo-only{display:block}
+body.geo .geo-strip{display:flex}
+body.geo header.top{background:transparent;border-bottom:4px ridge #c0c0c0;color:#ffff00}
+body.geo .brand{font-family:"Times New Roman",Times,serif;font-style:italic;font-size:30px;background:linear-gradient(90deg,#ff0000,#ff8800,#ffff00,#00ff00,#00ffff,#0088ff,#ff00ff,#ff0000);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:geo-rainbow 4s linear infinite}
+body.geo .brand::before{content:"\2605 ";color:#ffff00;-webkit-text-fill-color:#ffff00}
+body.geo .brand small{color:#00ff00;-webkit-text-fill-color:#00ff00;font-style:normal;font-family:"Courier New",monospace}
+body.geo .geo-marquee{overflow:hidden;white-space:nowrap;background:#000;color:#00ff00;font-family:"Courier New",monospace;font-weight:700;border:2px inset #c0c0c0;padding:2px 0}
+body.geo .geo-marquee span{display:inline-block;padding-left:100%;animation:geo-marquee 22s linear infinite}
+body.geo .geo-strip{align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:#fff}
+body.geo .geo-uc{background:repeating-linear-gradient(45deg,#ffcc00 0 10px,#000 10px 20px);color:#ffcc00;font-weight:900;padding:2px 8px;border:2px solid #000;text-shadow:0 0 2px #000,0 0 2px #000;font-family:Impact,"Arial Black",sans-serif;letter-spacing:.06em}
+body.geo .geo-counter b{font-family:"Courier New",monospace;background:#000;color:#ff0000;padding:1px 4px;border:2px inset #808080;letter-spacing:.15em}
+body.geo .geo-best{color:#99ffff;font-style:italic}
+body.geo .tab{color:#ffff00;font-family:"Times New Roman",serif;text-transform:none;font-size:18px;text-decoration:underline}
+body.geo .tab[aria-selected="true"]{color:#ff00ff;background:transparent;box-shadow:none}
+body.geo .search input,body.geo .spsearch input,body.geo .inline input,body.geo .fgroup input,body.geo .tagedit input,body.geo .notes textarea,body.geo .imp textarea{background:#fff;border:2px inset #c0c0c0;border-radius:0;color:#000}
+body.geo .iconbtn,body.geo .btn,body.geo .tog,body.geo .mtag,body.geo .day,body.geo .tagb,body.geo .lg,body.geo .folbtn,body.geo .seg button,body.geo .del,body.geo .starbtn{background:#c0c0c0;color:#000;border:2px outset #ffffff;border-radius:0;box-shadow:1px 1px 0 #000}
+body.geo .iconbtn:active,body.geo .btn:active,body.geo .tog:active,body.geo .day:active,body.geo .tagb:active{border-style:inset}
+body.geo .tog[aria-pressed="true"],body.geo .day[aria-pressed="true"],body.geo .tagb[aria-pressed="true"],body.geo .seg button[aria-pressed="true"],body.geo .lg[aria-pressed="true"]{border-style:inset;background:#a0a0a0;color:#000}
+body.geo .btn.primary{background:#000080;color:#ffff00;border-color:#8080ff}
+body.geo .day b,body.geo .day span{color:#000}
+body.geo .legend,body.geo .legend .lh,body.geo .lk,body.geo .status,body.geo .hint{color:#ffffcc}
+body.geo .filternote{background:#ffff99;color:#000;border:2px dashed #ff0000;border-radius:0}
+body.geo .view{color:#000}
+body.geo .ghead,body.geo .corner,body.geo .rlabel{background:#c0c0c0;color:#000;border-color:#808080}
+body.geo .tick,body.geo .tick.hr{color:#000}
+body.geo .track{background-color:rgba(255,255,255,.92)}
+body.geo .blk{background:#ffffff;border-radius:0;border:2px solid var(--tc);border-left-width:6px}
+body.geo .blk .bt{color:#0000ee;text-decoration:underline}
+body.geo .blk .bm,body.geo .blk .bs{color:#333}
+body.geo .slot{background:#000040;color:#00ff00;font-family:"Times New Roman",serif}
+body.geo .slot small{color:#ffff99}
+body.geo .card,body.geo .spk,body.geo .remcard,body.geo .agg,body.geo .callout{background:#ffffff;color:#000;border-radius:0;border:2px solid #808080}
+body.geo .card .ct,body.geo .spk .sn,body.geo .agtitle{color:#0000ee;text-decoration:underline}
+body.geo .sec{color:#ff00ff;font-family:"Times New Roman",serif;text-transform:none;font-style:italic}
+body.geo #minev .sec,body.geo #spkv .sec,body.geo #infov .sec{color:#ffff00}
+body.geo .sheet{background:#c0c0c0;color:#000;border:3px outset #fff;border-radius:0}
+body.geo .shead{background:#000080;border-bottom:0}
+body.geo .shead h2{color:#fff;font-family:"Times New Roman",serif}
+body.geo b.live,body.geo .blk.live .bm::before,body.geo .card.live .cm::before{animation:geo-blink 1s steps(1) infinite}
+body.geo .nowline{background:#ff0000;width:3px}
+body.geo .toast{background:#ffffcc;color:#000;border:3px outset #fff;border-radius:0}
+body.geo a{color:#0000ee}
+@keyframes geo-rainbow{to{background-position:200% 0}}
+@keyframes geo-marquee{to{transform:translateX(-100%)}}
+@keyframes geo-blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){body.geo .brand,body.geo .geo-marquee span,body.geo b.live,body.geo .blk.live .bm::before,body.geo .card.live .cm::before{animation:none}body.geo .geo-marquee span{padding-left:0}}
 code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:0 4px}
 .loading{display:grid;place-items:center;height:100%;color:var(--muted);font-family:var(--f-mono);font-size:12px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -316,13 +381,16 @@ code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);bor
 </head>
 <body>
 <header class="top gut">
+  <div class="geo-only geo-marquee" aria-hidden="true"><span>~*~ Welcome to my Ignite 2026 homepage!!! ~*~ 1,500+ sessions ~*~ Sign my guestbook ~*~ This page is best viewed with your eyes open ~*~ Don't forget to star your sessions!!! ~*~</span></div>
   <div class="row1">
     <div class="brand">Ignite Guide<small id="evsub">San Francisco, Nov 16-20 2026, Pacific time</small></div>
     <div class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Search titles, speakers, tags, codes" autocomplete="off" aria-label="Search sessions"><button id="qclear" aria-label="Clear search" hidden><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <button class="iconbtn" id="geobtn" aria-pressed="false" title="1999 mode: GeoCities homepage look"><span class="geolbl">1999</span></button>
     <a class="iconbtn" id="campusmap" href="https://wayfinding.event.microsoft.com/ignite?npi=hotels%2Crestaurants%2CPharmacies%2Cthingstodo&amp;tz=America%2FLos_Angeles" target="_blank" rel="noopener" aria-label="Open the venue map" title="Venue map" style="color:inherit"><svg class="i" viewBox="0 0 24 24"><path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg></a>
     <button class="iconbtn" id="impbtn" aria-label="Import my schedule from the Microsoft app" title="Import my schedule"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></button>
     <button class="iconbtn" id="fbtn" aria-label="Filters"><svg class="i" viewBox="0 0 24 24"><path d="M3 5h18M6 12h12M10 19h4"/></svg><span class="badge" id="fcount" hidden></span></button>
   </div>
+  <div class="geo-only geo-strip" aria-hidden="true"><span class="geo-uc">UNDER CONSTRUCTION</span><span class="geo-counter">You are visitor #<b id="geocount">0001337</b></span><span class="geo-best">Best viewed in Netscape Navigator 4.0 at 800x600</span></div>
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" data-v="guide">Guide</button>
     <button class="tab" role="tab" data-v="list">List</button>
@@ -374,6 +442,6 @@ code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);bor
 <div id="sheetroot"></div>
 <div id="toasts" aria-live="polite"></div>
 
-<script src="app.js?v=0730c5c8e6"></script>
+<script src="app.js?v=41aa5dfbfa"></script>
 </body>
 </html>

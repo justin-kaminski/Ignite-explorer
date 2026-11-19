@@ -60,10 +60,10 @@ const XKEYS=["xtg","xmy","xtt"],KKEYS=["ktg","kmy"];
 const NOTAGS="__none__";   // pseudo-tag for sessions Microsoft gave no tags
 const ui=(function(){
   const raw=LS("ig-ui")||{};
-  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,alerts:true,urlState:true,agenda:true,tagHide:false,tagExpand:false,f:{}};
+  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,alerts:true,urlState:true,agenda:true,tagHide:false,tagExpand:false,geo:false,f:{}};
   ["view","day","q"].forEach(k=>{if(typeof raw[k]==="string")u[k]=raw[k]});
   if(!["guide","list","speakers","mine","info"].includes(u.view))u.view="guide";
-  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys","alerts","urlState","agenda","tagHide","tagExpand"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
+  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys","alerts","urlState","agenda","tagHide","tagExpand","geo"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
   if([5,10,15,30].includes(raw.remLead))u.remLead=raw.remLead;
   if(raw.zv===3&&ZOOM.includes(raw.ppm))u.ppm=raw.ppm;
   const f=raw.f&&typeof raw.f==="object"?raw.f:{};
@@ -71,6 +71,16 @@ const ui=(function(){
   return u;
 })();
 const saveUI=()=>LS("ig-ui",ui);
+// ================= 1999 mode =================
+// A GeoCities-style homepage look. Only CSS changes; the counter counts this device's page loads.
+function applyGeo(){
+  document.body.classList.toggle("geo",!!ui.geo);
+  const b=$("#geobtn");if(b){b.setAttribute("aria-pressed",ui.geo);b.title=ui.geo?"Back to the normal look":"1999 mode: GeoCities homepage look"}
+  const c=$("#geocount");
+  if(c&&ui.geo){let v=0;try{v=(+localStorage.getItem("ig-visits")||0)}catch(e){}c.textContent=String(1337+v).padStart(7,"0")}
+}
+try{localStorage.setItem("ig-visits",String((+localStorage.getItem("ig-visits")||0)+1))}catch(e){}
+applyGeo();
 
 // ================= catalog =================
 let DATA=null,SES=[],DAYS=[],TAGLIST=[],ALIAS={};
@@ -1278,6 +1288,7 @@ $("#tTrk").addEventListener("click",()=>{ui.onlyTrk=!ui.onlyTrk;render()});
 $("#tStar").addEventListener("click",()=>{ui.onlyStar=!ui.onlyStar;render()});
 $("#tPast").addEventListener("click",()=>{ui.hidePast=!ui.hidePast;render()});
 $("#tKey").addEventListener("click",()=>{ui.legend=!ui.legend;render()});
+$("#geobtn").addEventListener("click",()=>{ui.geo=!ui.geo;saveUI();applyGeo();lineCache.clear();render()});
 $("#tAgenda").addEventListener("click",()=>{ui.agenda=!ui.agenda;render()});
 $("#tTags").addEventListener("click",()=>{ui.tagPanel=!ui.tagPanel;render();if(ui.tagPanel)$("#tagin").focus()});
 $("#tagin").addEventListener("input",renderTagList);
