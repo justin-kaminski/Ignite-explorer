@@ -6,7 +6,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- Standalone copy of Ignite Explorer. Generated from the claude.ai version; data loads from data.json. -->
-<link rel="stylesheet" href="fonts.css?v=f2a1437d96">
+<link rel="stylesheet" href="fonts.css?v=3d1dec4309">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
 <title>Ignite Session Guide</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -268,6 +268,25 @@ main{flex:1;min-height:0;position:relative}
 .rlabel a.rmap span{display:flex;align-items:center;gap:3px}
 .rlabel a.rmap span svg{width:10px;height:10px;flex:none}
 .rlabel a.rmap:hover b{text-decoration:underline}
+.agday{display:flex;flex-direction:column;gap:10px;margin-bottom:6px}
+.agday.past{opacity:.6}
+.agg{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.agh{font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.agrow{display:grid;grid-template-columns:104px 1fr;gap:10px;padding:7px 0;border-top:1px solid var(--line);min-width:0}
+.agh+.agrow{border-top:0}
+.agrow.past{opacity:.55}
+.agrow.live{box-shadow:inset 3px 0 0 var(--now);padding-left:8px}
+.agt{font-family:var(--f-mono);font-size:12px;white-space:nowrap}
+.agt .live{color:var(--now);font-size:10.5px;display:block}
+.agb{min-width:0;display:flex;flex-direction:column;gap:3px}
+.agtitle{font-weight:600}
+.agtitle small{font-family:var(--f-mono);font-weight:400;font-size:11px;color:var(--muted);margin-left:4px}
+.agplaces,.agchips{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px}
+.agplaces a,.agchips a{color:var(--focus);text-decoration:none;display:inline-flex;align-items:center;gap:3px}
+.agplaces a:hover,.agchips a:hover{text-decoration:underline}
+.agplaces svg,.agchips svg{width:12px;height:12px;flex:none}
+.agchip{white-space:nowrap}
+@media (max-width:480px){.agrow{grid-template-columns:78px 1fr}}
 code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:0 4px}
 .loading{display:grid;place-items:center;height:100%;color:var(--muted);font-family:var(--f-mono);font-size:12px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -287,6 +306,7 @@ code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);bor
     <button class="tab" role="tab" data-v="list">List</button>
     <button class="tab" role="tab" data-v="speakers">Speakers</button>
     <button class="tab" role="tab" data-v="mine">My schedule</button>
+    <button class="tab" role="tab" data-v="info">Event info</button>
   </div>
   <div class="row2" id="dayrow"><div class="days" id="days"></div>
     <div class="tools" id="gtools">
@@ -321,11 +341,12 @@ code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);bor
   <div class="view gut" id="listv" hidden></div>
   <div class="view gut" id="spkv" hidden></div>
   <div class="view gut" id="minev" hidden></div>
+  <div class="view gut" id="infov" hidden></div>
   <div class="loading" id="loading">Loading the session catalog</div>
 </main>
 <div id="sheetroot"></div>
 <div id="toasts" aria-live="polite"></div>
 
-<script src="app.js?v=f2a1437d96"></script>
+<script src="app.js?v=3d1dec4309"></script>
 </body>
 </html>

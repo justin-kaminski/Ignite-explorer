@@ -22,6 +22,8 @@ Cleanup applied to the raw feeds:
   removes the duplicate record.
 - Speakers a session lists but the speaker feed is missing are rebuilt from the session's name list.
 - Session -> speaker and speaker -> session links are made consistent in both directions.
+- The event agenda (badge pickup, shuttles, lunch, Hub hours) comes from the public "Event Agenda" feed of
+  Microsoft's venue map; if that is unavailable the previous agenda is kept.
 """
 import argparse
 import datetime as dt
@@ -36,6 +38,9 @@ from zoneinfo import ZoneInfo
 
 SESSIONS_URL = "https://ignite.microsoft.com/api/session/all/en-US"
 SPEAKERS_URL = "https://ignite.microsoft.com/api/speaker/all/en-US"
+# Event agenda (badge pickup, shuttles, lunch, Hub hours...) as shown in the "Event Agenda" panel of
+# Microsoft's public venue map. These AGENDA items are not in the session catalog feed.
+AGENDA_URL = "https://wayfinding.event.microsoft.com/Home/GetSessions?hour=1&level=-5&tags=Agenda&rooms=&venue="
 PT = ZoneInfo("America/Los_Angeles")
 ZERO_WIDTH = re.compile(r"[​-‏﻿]")
 
@@ -227,6 +232,45 @@ def build_speakers(raw_speakers, raw_sessions, sessions, instance_key):
     return speakers, alias, len(stubs)
 
 
+def agenda_group(title, code):
+    t = (title or "").lower()
+    if "shuttle" in t:
+        return "Shuttles"
+    if "badge" in t:
+        return "Badge pickup"
+    if "certification" in t:
+        return "Certifications"
+    if "reception" in t or "celebration" in t:
+        return "Receptions"
+    if "hub" in t or "swag" in t or "water bottle" in t:
+        return "The Hub & Swag"
+    if re.match(r"AGENDA0(09|15|23)", code or "") or "lunch" in t or "meal" in t:
+        return "Food"
+    return "Other"
+
+
+def build_agenda(raw):
+    items, seen = [], set()
+    for x in raw or []:
+        if not isinstance(x, dict) or x.get("isDeleted") or not x.get("startDateTime"):
+            continue
+        code, place = (x.get("sessionCode") or "").strip(), (x.get("roomName") or "").strip()
+        title = ZERO_WIDTH.sub("", html.unescape(x.get("roomTitle") or x.get("sessionTitle") or "")).strip()
+        if not title or (code, place) in seen:
+            continue
+        seen.add((code, place))
+        # times are UTC without a zone marker
+        start = dt.datetime.fromisoformat(x["startDateTime"]).replace(tzinfo=dt.timezone.utc).astimezone(PT)
+        end = dt.datetime.fromisoformat(x.get("endDateTime") or x["startDateTime"]).replace(tzinfo=dt.timezone.utc).astimezone(PT)
+        building, room = ([p.strip() for p in place.split("|", 1)] if "|" in place else (place, ""))
+        s = start.hour * 60 + start.minute
+        e = s + max(5, int((end - start).total_seconds() // 60))
+        items.append({"c": code, "t": title, "g": agenda_group(title, code), "day": start.strftime("%Y-%m-%d"),
+                      "s": s, "e": e, "b": building, "r": room})
+    items.sort(key=lambda a: (a["day"], a["s"], a["g"], a["t"], a["b"], a["r"]))
+    return items
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sessions", help="saved session feed JSON (skips download)")
@@ -238,6 +282,17 @@ def main():
 
     raw_sessions = json.load(open(a.sessions, encoding="utf-8")) if a.sessions else fetch_json(SESSIONS_URL)
     raw_speakers = json.load(open(a.speakers, encoding="utf-8")) if a.speakers else fetch_speakers()
+    out_path = Path(a.out)
+    try:
+        agenda = build_agenda(fetch_json(AGENDA_URL, tries=2))
+    except SystemExit as e:  # the venue map is down: keep the agenda we already have
+        print(f"Agenda not refreshed ({e}); keeping the previous one.")
+        agenda = []
+    if not agenda and out_path.exists():
+        try:
+            agenda = json.loads(out_path.read_text(encoding="utf-8")).get("agenda", [])
+        except ValueError:
+            agenda = []
 
     key_file = Path(a.keys)
     saved_keys = json.loads(key_file.read_text(encoding="utf-8")) if key_file.exists() else {}
@@ -266,8 +321,8 @@ def main():
         "sessions": sessions,
         "speakers": speakers,
         "alias": alias,
+        "agenda": agenda,
     }
-    out_path = Path(a.out)
     if out_path.exists():
         try:
             prev = json.loads(out_path.read_text(encoding="utf-8"))
@@ -286,7 +341,7 @@ def main():
     key_file.write_text(json.dumps(all_keys, indent=0, sort_keys=True), encoding="utf-8")
     timed = sum(1 for s in sessions if "day" in s)
     print(f"Wrote {a.out}: {len(sessions)} sessions ({timed} scheduled), {len(speakers)} speakers, "
-          f"{len(alias)} merged duplicates, {stubs} rebuilt speakers, {len(body) // 1024} KB")
+          f"{len(alias)} merged duplicates, {stubs} rebuilt speakers, {len(agenda)} agenda items, {len(body) // 1024} KB")
 
 
 if __name__ == "__main__":

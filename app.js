@@ -60,6 +60,7 @@ const ui=(function(){
   const raw=LS("ig-ui")||{};
   const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,alerts:true,urlState:true,f:{}};
   ["view","day","q"].forEach(k=>{if(typeof raw[k]==="string")u[k]=raw[k]});
+  if(!["guide","list","speakers","mine","info"].includes(u.view))u.view="guide";
   ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys","alerts","urlState"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
   if([5,10,15,30].includes(raw.remLead))u.remLead=raw.remLead;
   if(raw.zv===3&&ZOOM.includes(raw.ppm))u.ppm=raw.ppm;
@@ -168,10 +169,10 @@ function renderChrome(n){
   $("#tKey").setAttribute("aria-pressed",ui.legend);
   $("#legend").hidden=!(ui.legend&&showDays);
   if(ui.legend&&showDays)renderLegend(n);
-  ["grid","listv","spkv","minev"].forEach(id=>$("#"+id).hidden=true);
+  ["grid","listv","spkv","minev","infov"].forEach(id=>$("#"+id).hidden=true);
   $("#"+currentPane()).hidden=false;
 }
-const currentPane=()=>ui.view==="guide"?(ui.day==="od"?"listv":"grid"):ui.view==="list"?"listv":ui.view==="speakers"?"spkv":"minev";
+const currentPane=()=>ui.view==="guide"?(ui.day==="od"?"listv":"grid"):ui.view==="list"?"listv":ui.view==="speakers"?"spkv":ui.view==="info"?"infov":"minev";
 
 function renderLegend(n){
   const pool=SES.filter(s=>ui.day==="od"?!s.day:s.day===ui.day);
@@ -429,7 +430,7 @@ function urlStateChanged(){
   urlWriteT=setTimeout(async()=>{
     urlPayload=await encodeState(currentState());
     const r=splitHash().route;
-    setHash(/^(guide|list|speakers|mine|s-[A-Za-z0-9-]+)$/.test(r)?r:ui.view);
+    setHash(/^(guide|list|speakers|mine|info|s-[A-Za-z0-9-]+)$/.test(r)?r:ui.view);
   },400);
 }
 const sameState=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -672,6 +673,50 @@ document.addEventListener("change",e=>{
   if(t.id==="remsys")setSys(t.checked);
 });
 
+// ================= event info (agenda from Microsoft's venue map) =================
+const AG_ORDER=["Badge pickup","Shuttles","Food","The Hub & Swag","Certifications","Receptions","Other"];
+const agPlace=a=>[a.b,a.r].filter(Boolean).join(", ")||"";
+const agStatus=(a,n)=>a.day<n.day||(a.day===n.day&&a.e<=n.min)?"past":a.day===n.day&&a.s<=n.min?"live":"";
+function agPlaceLink(a,label){
+  const u=mapLink(a.b,a.r,a.c);
+  return u?`<a href="${esc(u)}" target="_blank" rel="noopener" title="Open on Microsoft's venue map">${ICON.map}${esc(label)}</a>`:esc(label);
+}
+function renderInfo(){
+  const el=$("#infov"),n=nowPT(),A=(DATA&&Array.isArray(DATA.agenda))?DATA.agenda:[];
+  let html=`<div class="list"><div class="remcard" style="margin-top:8px"><div class="sec" style="margin:2px 0">Event info</div>
+    <p class="hint" style="margin:0">Badge pickup, shuttles, food, Hub hours and more, from the Event Agenda in Microsoft's venue map. Times are Pacific and subject to change. Tap a place to open it on the map.</p>
+    <div class="actions"><a class="btn" href="${esc(campusMapLink())}" target="_blank" rel="noopener">${ICON.map}Open the venue map</a></div></div>`;
+  if(!A.length){el.innerHTML=html+`<div class="empty"><b>Not available</b>The event agenda couldn't be loaded with this data update.</div></div>`;return}
+  const days=[...new Set(A.map(a=>a.day))].sort();
+  days.forEach(day=>{
+    const items=A.filter(a=>a.day===day),past=day<n.day,today=day===n.day;
+    html+=`<div class="slot${today?" pin":""}" data-agday="${day}">${esc(dayLabel(day).long)}${today?"<small>today</small>":past?"<small>done</small>":""}</div><div class="agday${past?" past":""}">`;
+    AG_ORDER.forEach(g=>{
+      const gi=items.filter(a=>a.g===g);if(!gi.length)return;
+      html+=`<div class="agg"><div class="agh">${esc(g)}</div>`;
+      if(g==="Food"){
+        const slots=[...new Set(gi.map(a=>a.s+"-"+a.e))];
+        slots.forEach(sl=>{
+          const si=gi.filter(a=>a.s+"-"+a.e===sl),a0=si[0],st=agStatus(a0,n);
+          const chips=si.map(a=>{const lbl=a.t==="Lunch"?`Lunch, ${shortB(a.b)}${a.r?" "+a.r.replace(/,?\s*Lunch$/,""):""}`:`${a.t}${a.b&&a.b!==a.t?", "+shortB(a.b):""}`;return `<span class="agchip">${agPlaceLink(a,lbl)}</span>`}).join("");
+          html+=`<div class="agrow ${st}"><div class="agt">${fmtMinShort(a0.s)}-${fmtMinShort(a0.e)}${st==="live"?` <b class="live">OPEN NOW</b>`:""}</div><div class="agb"><div class="agtitle">Lunch and meals <small>${si.length} spots</small></div><div class="agchips">${chips}</div></div></div>`;
+        });
+      }else{
+        // same title and time at several places (shuttle stops, badge desks): one row, places listed
+        const keys=[...new Set(gi.map(a=>a.t+"|"+a.s+"|"+a.e))];
+        keys.forEach(k=>{
+          const si=gi.filter(a=>a.t+"|"+a.s+"|"+a.e===k),a0=si[0],st=agStatus(a0,n);
+          html+=`<div class="agrow ${st}"><div class="agt">${fmtMinShort(a0.s)}-${fmtMinShort(a0.e)}${st==="live"?` <b class="live">NOW</b>`:""}</div><div class="agb"><div class="agtitle">${esc(a0.t)}</div><div class="agplaces">${si.map(a=>agPlaceLink(a,agPlace(a))).join("")}</div></div></div>`;
+        });
+      }
+      html+=`</div>`;
+    });
+    html+=`</div>`;
+  });
+  el.innerHTML=html+`</div>`;
+  if(el._scrolledFor!==n.day){el._scrolledFor=n.day;const t=el.querySelector(`[data-agday="${n.day}"]`);if(t)el.scrollTop=Math.max(0,t.offsetTop-8)}
+}
+
 // ================= render loop =================
 function render(opts){
   if(!DATA)return;
@@ -686,6 +731,7 @@ function render(opts){
   if(pane==="grid")renderGrid(keep);
   else if(pane==="listv")renderList();
   else if(pane==="spkv")renderSpeakers();
+  else if(pane==="infov")renderInfo();
   else renderMine();
   if(keep&&pane!=="grid"&&el._kept===pane)el.scrollTop=y;   // replacing the content resets scroll; put it back
   el._kept=pane;
@@ -709,6 +755,7 @@ function tick(){
   checkReminders(n);
   if(ui.hidePast&&!isInput(document.activeElement)&&!openSheet){render();return}
   placeNow(n);
+  if(currentPane()==="infov"&&!isInput(document.activeElement)){const el=$("#infov"),y=el.scrollTop;renderInfo();el.scrollTop=y}
   document.querySelectorAll("[data-card],.blk[data-k]").forEach(el=>{
     const s=byKey.get(el.dataset.card||el.dataset.k);if(!s)return;
     el.classList.toggle("past",isPast(s,n));el.classList.toggle("live",isLive(s,n));
@@ -751,7 +798,7 @@ function sessionBody(s){
   const when=s.day?`${dayLabel(s.day).long}, ${fmtMin(s.s)} to ${fmtMin(s.e)} PT (${s.e-s.s} min)`:"On demand / online";
   const others=(byCode.get(s.c)||[]).filter(x=>x.k!==s.k);
   const vid=/^https:\/\//i.test(s.vid||"")?s.vid:"";
-  let h=kindCallout(s)+`<div class="actions"><button class="btn${st?" primary":""}" data-star="${esc(s.k)}" aria-pressed="${st}">${ICON.star}${st?"Starred":"Star"}</button><a class="btn" href="https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}" target="_blank" rel="noopener">${ICON.ext}Official page</a>${s.day&&mapLink(s.b,s.r,s.c)?`<a class="btn" href="${esc(campusMapLink())}" target="_blank" rel="noopener" title="Open Microsoft's venue map at the campus view">${ICON.map}Map</a><a class="btn" href="${esc(mapLink(s.b,s.r,s.c))}" target="_blank" rel="noopener" title="Open this room on Microsoft's venue map">${ICON.map}Room</a>`:""}<button class="btn" data-share="${esc(s.k)}">${ICON.share}Share</button>${vid?`<a class="btn" href="${esc(vid)}" target="_blank" rel="noopener">${ICON.play}Recording</a>`:""}</div><div class="impstat" id="sharestat" role="status"></div>`;
+  let h=kindCallout(s)+`<div class="actions"><button class="btn${st?" primary":""}" data-star="${esc(s.k)}" aria-pressed="${st}">${ICON.star}${st?"Starred":"Star"}</button><a class="btn" href="https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}" target="_blank" rel="noopener">${ICON.ext}Official page</a>${s.day&&mapLink(s.b,s.r,s.c)?`<a class="btn" href="${esc(mapLink(s.b,s.r,s.c))}" target="_blank" rel="noopener" title="Open this room on Microsoft's venue map">${ICON.map}Map</a>`:""}<button class="btn" data-share="${esc(s.k)}">${ICON.share}Share</button>${vid?`<a class="btn" href="${esc(vid)}" target="_blank" rel="noopener">${ICON.play}Recording</a>`:""}</div><div class="impstat" id="sharestat" role="status"></div>`;
   h+=`<dl class="kv"><dt>When</dt><dd>${esc(when)}${isLive(s,n)?` <b style="color:var(--now)">LIVE NOW</b>`:""}</dd><dt>Where</dt><dd>${esc([s.b,s.r].filter(Boolean).join(", ")||"Online")}</dd><dt>Code</dt><dd>${esc(s.c)}</dd><dt>Type</dt><dd><span class="pill ${tclass(s.ty)}">${esc(s.ty)}</span></dd>`
     +(s.lv.length?`<dt>Level</dt><dd>${esc(s.lv.join(", "))}</dd>`:"")+(s.tp.length?`<dt>Topic</dt><dd>${esc(s.tp.join(", "))}</dd>`:"")+(s.au.length?`<dt>For</dt><dd>${esc(s.au.join(", "))}</dd>`:"")
     +`<dt>Format</dt><dd>${esc(s.dl.join(", "))}${s.rec?", recorded":", not recorded"}${s.seat?", "+esc(s.seat.toLowerCase()):""}</dd>`
@@ -1176,7 +1223,7 @@ function route(){
       render({keepScroll:false});revealSession(s);openSession(s.k);return;
     }
   }
-  if(["guide","list","speakers","mine"].includes(v))ui.view=v;render({keepScroll:false});if(ui.view==="guide")scrollToNow();
+  if(["guide","list","speakers","mine","info"].includes(v))ui.view=v;render({keepScroll:false});if(ui.view==="guide")scrollToNow();
 }
 window.addEventListener("hashchange",route);
 
