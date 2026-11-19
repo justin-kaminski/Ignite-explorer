@@ -310,66 +310,95 @@ main{flex:1;min-height:0;position:relative}
 .tchip.st-hide{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--now) 70%,transparent)}
 .tchip.st-hide .tflip{color:var(--now);font-weight:600}
 
-/* ===== 1999 mode (GeoCities homepage look) ===== */
+/* ===== 1999 mode (GeoCities homepage look), dark and readable ===== */
 .geo-only{display:none}
 #geobtn .geolbl{font-family:var(--f-mono);font-size:11px;font-weight:600;letter-spacing:.02em}
-#geobtn[aria-pressed="true"]{background:#ff00ff;color:#fff;border-color:#ff00ff}
+#geobtn[aria-pressed="true"]{background:#ff00ff;color:#000;border-color:#ff00ff}
 body.geo{
-  --bg:#000040;--surface:#c0c0c0;--surface2:#d8d8d8;--ink:#000000;--muted:#303030;--line:#808080;
-  --accent:#ff00ff;--accent-ink:#ffffff;--follow:#0000ee;--now:#ff0000;--focus:#ffff00;
-  --c-key:#ff8800;--c-brk:#0000ff;--c-thr:#008080;--c-lt:#800080;--c-tt:#ff0080;--c-lab:#008000;--c-bc:#ff4400;--c-inv:#0088ff;--c-oth:#606060;
-  --f-display:"Times New Roman",Times,serif;--f-body:"Comic Sans MS","Comic Sans","Chalkboard SE","Comic Neue",cursive,sans-serif;--f-mono:"Courier New",Courier,monospace;
-  color-scheme:light;
-  background-color:#000040;
+  --bg:#000018;--surface:#00002e;--surface2:#000040;--ink:#f0f0ff;--muted:#a8a8ff;--line:#3a3aaa;
+  --accent:#ff00ff;--accent-ink:#000000;--follow:#ff66ff;--now:#ff3b3b;--focus:#ffff00;
+  --c-key:#ffcc00;--c-brk:#3399ff;--c-thr:#00ffcc;--c-lt:#cc66ff;--c-tt:#ff6699;--c-lab:#66ff33;--c-bc:#ff9933;--c-inv:#33ccff;--c-oth:#9999bb;
+  --f-display:"Times New Roman",Times,serif;--f-body:Verdana,Geneva,Tahoma,"DejaVu Sans",sans-serif;--f-mono:"Courier New",Courier,"Liberation Mono",monospace;
+  color-scheme:dark;
+  background-color:#000018;
   background-image:
     radial-gradient(1.5px 1.5px at 20px 30px,#fff 98%,transparent),radial-gradient(1px 1px at 90px 80px,#ffff99 98%,transparent),
     radial-gradient(1.5px 1.5px at 150px 20px,#fff 98%,transparent),radial-gradient(1px 1px at 60px 140px,#99ffff 98%,transparent),
-    radial-gradient(2px 2px at 170px 160px,#fff 98%,transparent),radial-gradient(1px 1px at 120px 110px,#fff 98%,transparent);
+    radial-gradient(2px 2px at 170px 160px,#fff 98%,transparent),radial-gradient(1px 1px at 120px 110px,#ff99ff 98%,transparent);
   background-size:200px 200px;
 }
-body.geo::before{background:#000040}
+body.geo::before{background:#000018}
 body.geo .geo-only{display:block}
 body.geo .geo-strip{display:flex}
-body.geo header.top{background:transparent;border-bottom:4px ridge #c0c0c0;color:#ffff00}
-body.geo .brand{font-family:"Times New Roman",Times,serif;font-style:italic;font-size:30px;background:linear-gradient(90deg,#ff0000,#ff8800,#ffff00,#00ff00,#00ffff,#0088ff,#ff00ff,#ff0000);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:geo-rainbow 4s linear infinite}
+body.geo header.top{background:transparent;border-bottom:4px ridge #ff00ff;color:#ffff00}
+body.geo .brand{font-family:"Times New Roman",Times,serif;font-weight:700;font-size:30px;background:linear-gradient(90deg,#ff0000,#ff8800,#ffff00,#00ff00,#00ffff,#0088ff,#ff00ff,#ff0000);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:geo-rainbow 4s linear infinite}
 body.geo .brand::before{content:"\2605 ";color:#ffff00;-webkit-text-fill-color:#ffff00}
-body.geo .brand small{color:#00ff00;-webkit-text-fill-color:#00ff00;font-style:normal;font-family:"Courier New",monospace}
-body.geo .geo-marquee{overflow:hidden;white-space:nowrap;background:#000;color:#00ff00;font-family:"Courier New",monospace;font-weight:700;border:2px inset #c0c0c0;padding:2px 0}
+body.geo .brand small{color:#00ff66;-webkit-text-fill-color:#00ff66;font-family:"Courier New",monospace}
+body.geo .geo-marquee{overflow:hidden;white-space:nowrap;background:#000;color:#00ff66;font-family:"Courier New",monospace;font-weight:700;border:2px inset #3a3aaa;padding:2px 0}
 body.geo .geo-marquee span{display:inline-block;padding-left:100%;animation:geo-marquee 22s linear infinite}
-body.geo .geo-strip{align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:#fff}
-body.geo .geo-uc{background:repeating-linear-gradient(45deg,#ffcc00 0 10px,#000 10px 20px);color:#ffcc00;font-weight:900;padding:2px 8px;border:2px solid #000;text-shadow:0 0 2px #000,0 0 2px #000;font-family:Impact,"Arial Black",sans-serif;letter-spacing:.06em}
-body.geo .geo-counter b{font-family:"Courier New",monospace;background:#000;color:#ff0000;padding:1px 4px;border:2px inset #808080;letter-spacing:.15em}
-body.geo .geo-best{color:#99ffff;font-style:italic}
-body.geo .tab{color:#ffff00;font-family:"Times New Roman",serif;text-transform:none;font-size:18px;text-decoration:underline}
-body.geo .tab[aria-selected="true"]{color:#ff00ff;background:transparent;box-shadow:none}
-body.geo .search input,body.geo .spsearch input,body.geo .inline input,body.geo .fgroup input,body.geo .tagedit input,body.geo .notes textarea,body.geo .imp textarea{background:#fff;border:2px inset #c0c0c0;border-radius:0;color:#000}
-body.geo .iconbtn,body.geo .btn,body.geo .tog,body.geo .mtag,body.geo .day,body.geo .tagb,body.geo .lg,body.geo .folbtn,body.geo .seg button,body.geo .del,body.geo .starbtn{background:#c0c0c0;color:#000;border:2px outset #ffffff;border-radius:0;box-shadow:1px 1px 0 #000}
-body.geo .iconbtn:active,body.geo .btn:active,body.geo .tog:active,body.geo .day:active,body.geo .tagb:active{border-style:inset}
-body.geo .tog[aria-pressed="true"],body.geo .day[aria-pressed="true"],body.geo .tagb[aria-pressed="true"],body.geo .seg button[aria-pressed="true"],body.geo .lg[aria-pressed="true"]{border-style:inset;background:#a0a0a0;color:#000}
-body.geo .btn.primary{background:#000080;color:#ffff00;border-color:#8080ff}
-body.geo .day b,body.geo .day span{color:#000}
-body.geo .legend,body.geo .legend .lh,body.geo .lk,body.geo .status,body.geo .hint{color:#ffffcc}
-body.geo .filternote{background:#ffff99;color:#000;border:2px dashed #ff0000;border-radius:0}
-body.geo .view{color:#000}
-body.geo .ghead,body.geo .corner,body.geo .rlabel{background:#c0c0c0;color:#000;border-color:#808080}
-body.geo .tick,body.geo .tick.hr{color:#000}
-body.geo .track{background-color:rgba(255,255,255,.92)}
-body.geo .blk{background:#ffffff;border-radius:0;border:2px solid var(--tc);border-left-width:6px}
-body.geo .blk .bt{color:#0000ee;text-decoration:underline}
-body.geo .blk .bm,body.geo .blk .bs{color:#333}
-body.geo .slot{background:#000040;color:#00ff00;font-family:"Times New Roman",serif}
-body.geo .slot small{color:#ffff99}
-body.geo .card,body.geo .spk,body.geo .remcard,body.geo .agg,body.geo .callout{background:#ffffff;color:#000;border-radius:0;border:2px solid #808080}
-body.geo .card .ct,body.geo .spk .sn,body.geo .agtitle{color:#0000ee;text-decoration:underline}
-body.geo .sec{color:#ff00ff;font-family:"Times New Roman",serif;text-transform:none;font-style:italic}
-body.geo #minev .sec,body.geo #spkv .sec,body.geo #infov .sec{color:#ffff00}
-body.geo .sheet{background:#c0c0c0;color:#000;border:3px outset #fff;border-radius:0}
-body.geo .shead{background:#000080;border-bottom:0}
-body.geo .shead h2{color:#fff;font-family:"Times New Roman",serif}
+body.geo .geo-strip{align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:#ccccff}
+body.geo .geo-uc{background:repeating-linear-gradient(45deg,#ffcc00 0 10px,#000 10px 20px);color:#ffcc00;font-weight:900;padding:2px 8px;border:2px solid #000;text-shadow:0 0 2px #000,0 0 2px #000,0 0 3px #000;font-family:Impact,"Arial Black",Arial,sans-serif;letter-spacing:.06em}
+body.geo .geo-counter b{font-family:"Courier New",monospace;background:#000;color:#ff3b3b;padding:1px 4px;border:2px inset #3a3aaa;letter-spacing:.15em}
+body.geo .geo-best{color:#66ffff}
+/* tabs as underlined links */
+body.geo .tab{color:#ffff00;font-family:"Times New Roman",serif;text-transform:none;font-size:18px;text-decoration:underline;background:none}
+body.geo .tab[aria-selected="true"]{color:#ff66ff;background:none;box-shadow:none}
+/* every control: dark navy with a neon bevel */
+body.geo .iconbtn,body.geo .btn,body.geo .tog,body.geo .mtag,body.geo .day,body.geo .tagb,body.geo .lg,body.geo .folbtn,body.geo .seg button,body.geo .del,body.geo .starbtn,body.geo .tchip{background:#000044;color:#00ffff;border:2px outset #4d4dff;border-radius:0;box-shadow:none}
+body.geo .iconbtn svg,body.geo .btn svg{color:#00ffff}
+body.geo .tog[aria-pressed="true"],body.geo .day[aria-pressed="true"],body.geo .tagb[aria-pressed="true"],body.geo .seg button[aria-pressed="true"],body.geo .lg[aria-pressed="true"],body.geo .folbtn[aria-pressed="true"],body.geo .starbtn[aria-pressed="true"]{border-style:inset;background:#3a0050;color:#ff66ff}
+body.geo .btn.primary{background:#3a0050;color:#ffff00;border-color:#ff00ff}
+body.geo .btn.primary svg{fill:#ffff00;color:#ffff00}
+body.geo .day b,body.geo .day span{color:inherit}
+body.geo .tagb small,body.geo .lg small,body.geo .day span{color:#a8a8ff;opacity:1}
+body.geo .tagb.ls-hide{background:#2a0000;color:#ff6b6b;border-color:#ff3b3b}
+body.geo .tagb.ls-keep,body.geo .tchip.st-keep{background:#002a00;color:#66ff33;border-color:#66ff33}
+body.geo .tchip.st-hide{background:#2a0000}
+body.geo #geobtn[aria-pressed="true"]{background:#ff00ff;color:#000;border-color:#ff00ff}
+/* inputs: green-on-black terminal */
+body.geo .search input,body.geo .spsearch input,body.geo .inline input,body.geo .fgroup input,body.geo .tagedit input,body.geo .notes textarea,body.geo .imp textarea,body.geo .chk select,body.geo #tagin{background:#000;color:#00ff66;border:2px inset #4d4dff;border-radius:0;font-family:"Courier New",monospace}
+body.geo .search svg{color:#00ff66}
+body.geo input::placeholder,body.geo textarea::placeholder{color:#3c8f5c}
+/* text and panels */
+body.geo .legend,body.geo .legend .lh,body.geo .lk,body.geo .status,body.geo .hint{color:#c8c8ff}
+body.geo .filternote{background:#2a0010;color:#ffff66;border:2px dashed #ff3b3b;border-radius:0}
+body.geo .ghead,body.geo .corner,body.geo .rlabel{background:#000033;color:#ffff66;border-color:#3a3aaa}
+body.geo .rlabel b{color:#ffff66}
+body.geo .rlabel span,body.geo .corner{color:#a8a8ff}
+body.geo .tick{color:#a8a8ff;border-color:#3a3aaa}
+body.geo .tick.hr{color:#ffff66}
+body.geo .track{background-color:rgba(0,0,24,.82)}
+body.geo .blk{background:#00002e;border-radius:0;border:2px solid var(--tc);border-left-width:6px;color:#f0f0ff}
+body.geo .blk:hover{background:#000050}
+body.geo .blk .bt{color:#00ffff;text-decoration:underline}
+body.geo .blk .bm,body.geo .blk .bs{color:#c8c8ff}
+body.geo .blk.agblk{background:#002200}
+body.geo .grow.pinrow .rlabel{background:#2a0040}
+body.geo .grow.agrowg .rlabel{background:#002200}
+body.geo .slot{background:#000018;color:#ffff00;font-family:"Times New Roman",serif}
+body.geo .slot small{color:#a8a8ff}
+body.geo .card,body.geo .spk,body.geo .remcard,body.geo .agg,body.geo .callout,body.geo .tagedit{background:#00002e;color:#f0f0ff;border-radius:0;border:2px solid #4d4dff}
+body.geo .card{border-left:6px solid var(--tc)}
+body.geo .card .ct,body.geo .spk .sn,body.geo .agtitle{color:#00ffff;text-decoration:underline}
+body.geo .card .cm,body.geo .spk .sj,body.geo .spk .sc{color:#c8c8ff}
+body.geo .card .cm .tm{color:#ffff66}
+body.geo .pill{background:#000;color:#ffff66;border:1px solid var(--tc)}
+body.geo .sec{color:#ff66ff;font-family:"Times New Roman",serif;text-transform:none}
+body.geo .sec small{color:#a8a8ff}
+body.geo .kv dt{color:#a8a8ff}
+body.geo .agday.past,body.geo .agrow.past{opacity:.55}
+body.geo .agplaces a,body.geo .agchips a,body.geo .linkbtn{color:#00ffff}
+/* sheets as a dark window with a title bar */
+body.geo .sheet{background:#000022;color:#f0f0ff;border:3px ridge #ff00ff;border-radius:0}
+body.geo .shead{background:linear-gradient(90deg,#000080,#5a0080);border-bottom:0}
+body.geo .shead h2{color:#ffffff;font-family:"Times New Roman",serif}
+body.geo .scrim{background:rgb(0 0 20 / .7)}
+body.geo .toast{background:#00002e;color:#f0f0ff;border:3px ridge #ff00ff;border-radius:0}
+body.geo .toast .tt{color:#ffff00}
 body.geo b.live,body.geo .blk.live .bm::before,body.geo .card.live .cm::before{animation:geo-blink 1s steps(1) infinite}
-body.geo .nowline{background:#ff0000;width:3px}
-body.geo .toast{background:#ffffcc;color:#000;border:3px outset #fff;border-radius:0}
-body.geo a{color:#0000ee}
+body.geo .nowline{background:#ff3b3b;width:3px}
+body.geo a{color:#00ffff}
+body.geo :focus-visible{outline:2px dashed #ffff00;outline-offset:2px}
 @keyframes geo-rainbow{to{background-position:200% 0}}
 @keyframes geo-marquee{to{transform:translateX(-100%)}}
 @keyframes geo-blink{50%{opacity:0}}
