@@ -146,7 +146,7 @@ function matches(s,n,opt){
   if(!opt.ignoreTy&&f.ty.length&&!f.ty.includes(s.ty))return false;
   if(f.kd.length&&!(f.kd.includes(KIND[s.kind].filter)||(s.cancelled&&f.kd.includes("Cancelled"))))return false;
   if(f.tp.length&&!s.tp.some(x=>f.tp.includes(x)))return false;
-  if(f.lv.length&&!s.lv.some(x=>f.lv.includes(x)))return false;
+  if(!opt.ignoreLv&&f.lv.length&&!s.lv.some(x=>f.lv.includes(x)))return false;
   if(f.au.length&&!s.au.some(x=>f.au.includes(x)))return false;
   if(f.b.length&&!f.b.includes(s.b||"Online"))return false;
   if(f.dl.length&&!s.dl.some(x=>f.dl.includes(x)))return false;
@@ -175,6 +175,8 @@ function tagOK(s){
   const st=sTags.get(s.k)||[],hasTg=t=>t===NOTAGS?!s.tg.length:s.tg.includes(t);
   return !(f.xtg.some(hasTg)||f.xmy.some(id=>st.includes(id))||f.xtt.some(term=>termMatch(s,term)));
 }
+// Microsoft's levels read "(200) Intermediate"; the number is what people scan for.
+function lvNum(v){const m=String(v).match(/\d{3}/);return m?m[0]:String(v)}
 const filterCount=()=>FKEYS.reduce((a,k)=>a+ui.f[k].length,0);
 const hiddenTagCount=()=>XKEYS.reduce((a,k)=>a+ui.f[k].length,0);
 const interestedCount=()=>ui.f.tg.length+ui.f.my.length+ui.f.tt.length;
@@ -193,6 +195,7 @@ function renderChrome(n){
   $("#gtools").hidden=ui.view!=="guide"||ui.day==="od";
   $("#quick").hidden=!showDays;
   $("#tTrk").setAttribute("aria-pressed",ui.onlyTrk);$("#tStar").setAttribute("aria-pressed",ui.onlyStar);$("#tPast").setAttribute("aria-pressed",ui.hidePast);
+  if(showDays)renderLevels(n);
   $("#mytagchips").innerHTML=my.tags.map(t=>`<button class="mtag" data-mytag="${esc(t.id)}" aria-pressed="${ui.f.my.includes(t.id)}" style="--tg:${tagColor(t)}"><span class="tdot"></span>${esc(t.name)}</button>`).join("");
   const fc=filterCount()-tagFilterCount();$("#fcount").hidden=!fc;$("#fcount").textContent=fc;
   $("#qclear").hidden=!ui.q;
@@ -208,6 +211,14 @@ function renderChrome(n){
   ["grid","listv","spkv","minev","infov"].forEach(id=>$("#"+id).hidden=true);
   $("#"+currentPane()).hidden=false;
 }
+// Level chips in the header. Same filter as Level in the Filters sheet; counts are for the selected day with every other filter applied.
+function renderLevels(n){
+  const inDay=s=>ui.day==="od"?!s.day:s.day===ui.day;
+  const cnt=new Map();SES.forEach(s=>{if(inDay(s)&&matches(s,n,{ignoreLv:true}))s.lv.forEach(v=>cnt.set(v,(cnt.get(v)||0)+1))});
+  const lvls=facet("lv").map(x=>x.v).sort((a,b)=>a.localeCompare(b));
+  $("#lvgrp").innerHTML=`<span class="lvh">Level</span>`+lvls.map(v=>{const c=cnt.get(v)||0;
+    return `<button class="tog lvb" data-fk="lv" data-fv="${esc(v)}" aria-pressed="${ui.f.lv.includes(v)}" aria-label="Level ${esc(v)}, ${c} sessions" title="${esc(v)}: ${c} session${c===1?"":"s"} on this day">${esc(lvNum(v))}<small>${c}</small></button>`}).join("");
+}
 const currentPane=()=>ui.view==="guide"?(ui.day==="od"?"listv":"grid"):ui.view==="list"?"listv":ui.view==="speakers"?"spkv":ui.view==="info"?"infov":"minev";
 
 // Say plainly when toggles, search or filters are hiding sessions on the selected day, with one tap to show all.
@@ -221,7 +232,9 @@ function renderFilterNote(show){
   if(ui.onlyTrk)why.push("Followed speakers only");
   if(ui.hidePast)why.push("Hide ended");
   if(ui.q)why.push(`search "${ui.q}"`);
-  const ic=interestedCount(),xc=hiddenTagCount(),fc=filterCount()-ic-xc;if(fc)why.push(`${fc} filter${fc===1?"":"s"}`);
+  const ic=interestedCount(),xc=hiddenTagCount(),lc=ui.f.lv.length,fc=filterCount()-ic-xc-lc;
+  if(lc)why.push("level "+ui.f.lv.map(lvNum).sort().join(", "));
+  if(fc)why.push(`${fc} filter${fc===1?"":"s"}`);
   if(ic||xc)why.push([ic?`${ic} interested`:"",xc?`${xc} not interested`:""].filter(Boolean).join(", ")+" tag"+(ic+xc===1?"":"s")+(faded?` (${faded} faded)`:""));
   const day=ui.day==="od"?"on demand":"on "+dayLabel(ui.day).long;
   el.innerHTML=`<span>${faded?`${shown-faded} of ${total} sessions match`:`Showing ${shown} of ${total} sessions`} ${esc(day)}${why.length?" · "+esc(why.join(", ")):""}</span><button class="tog" id="showall">Show all</button>`;
@@ -369,7 +382,7 @@ function renderGrid(keepScroll){
       html+=`<button class="blk ${tclass(s.ty)} k-${s.kind}${s.cancelled?" cx":""}${st?" star":""}${tk?" trk":""}${!row.pin&&FADED.has(s.k)?" faded":""}${statusClasses(s,n)}" data-k="${esc(s.k)}" style="left:${(s.s-t0)*ppm+1}px;width:${bw(s)}px;top:${lane.get(s.k)*lh+3}px;height:${lh-6}px" title="${esc(s.t)}">`
         +(flags?`<span class="flags">${flags}</span>`:"")
         +(s.kind!=="inperson"||s.cancelled?`<span class="kline">${kindBadge(s)}${s.main?` streams ${esc(s.main.c)}`:""}</span>`:"")
-        +`<span class="bt"${fc?` style="padding-right:${fc*13}px"`:""}>${esc(s.t)}</span><span class="bm">${fmtMinShort(s.s)}-${fmtMinShort(s.e)} ${esc(s.c)}</span>`
+        +`<span class="bt"${fc?` style="padding-right:${fc*13}px"`:""}>${esc(s.t)}</span><span class="bm">${fmtMinShort(s.s)}-${fmtMinShort(s.e)} ${esc(s.c)}${s.lv.length?" · L"+esc(lvNum(s.lv[0])):""}</span>`
         +(row.pin?`<span class="bs">${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>`:"")
         +(s.spn?`<span class="bs">${spkLine(s)}</span>`:"")+`</button>`;
     });
@@ -412,7 +425,7 @@ function cardHTML(s,n,extra){
   const spk=s.sp.map(id=>SPK.get(id)).filter(Boolean).map(p=>my.follow.has(p.id)?`<span class="f">${esc(p.n)}</span>`:esc(p.n)).join(", ");
   const when=s.day?`<span class="tm">${extra.showDay?esc(dayLabel(s.day).w)+" ":""}${fmtMinShort(s.s)}-${fmtMinShort(s.e)}</span>`:`<span class="tm">On demand</span>`;
   const tags=sessionTags(s).map(t=>`<span style="--tg:${tagColor(t)};display:inline-flex;align-items:center;gap:4px"><span class="tdot"></span>${esc(t.name)}</span>`).join("");
-  return `<div class="card ${tclass(s.ty)} k-${s.kind}${s.cancelled?" cx":""}${st?" star":""}${extra.fade&&FADED.has(s.k)?" faded":""}${statusClasses(s,n)}" data-card="${esc(s.k)}"><button class="main" data-k="${esc(s.k)}"><span class="ct">${esc(s.t)}</span><span class="cm">${when}${kindBadge(s)}${isInterested(s)?`<span class="cint" title="Has an Interested tag">&#10003; Interested</span>`:""}<span class="pill">${esc(s.ty)}</span><span>${esc(s.c)}</span><span>${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>${my.notes.has(s.c)?`<span>${ICON.note}</span>`:""}${tags}</span>${spk?`<span class="cs">${spk}</span>`:""}${extra.warn?`<span class="warn">${esc(extra.warn)}</span>`:""}</button><button class="starbtn" data-star="${esc(s.k)}" aria-pressed="${st}" aria-label="${st?"Unstar":"Star"} ${esc(s.t)}">${ICON.star}</button></div>`;
+  return `<div class="card ${tclass(s.ty)} k-${s.kind}${s.cancelled?" cx":""}${st?" star":""}${extra.fade&&FADED.has(s.k)?" faded":""}${statusClasses(s,n)}" data-card="${esc(s.k)}"><button class="main" data-k="${esc(s.k)}"><span class="ct">${esc(s.t)}</span><span class="cm">${when}${kindBadge(s)}${isInterested(s)?`<span class="cint" title="Has an Interested tag">&#10003; Interested</span>`:""}<span class="pill">${esc(s.ty)}</span>${s.lv.length?`<span class="lvl" title="${esc(s.lv.join(", "))}">L${esc(s.lv.map(lvNum).join("/"))}</span>`:""}<span>${esc(s.c)}</span><span>${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>${my.notes.has(s.c)?`<span>${ICON.note}</span>`:""}${tags}</span>${spk?`<span class="cs">${spk}</span>`:""}${extra.warn?`<span class="warn">${esc(extra.warn)}</span>`:""}</button><button class="starbtn" data-star="${esc(s.k)}" aria-pressed="${st}" aria-label="${st?"Unstar":"Star"} ${esc(s.t)}">${ICON.star}</button></div>`;
 }
 function overlapMap(list){
   const m=new Map();
@@ -996,9 +1009,9 @@ function filterBody(){
   <div class="fgroup"><h3>My tags</h3><div class="tags">${my.tags.map(t=>`<button class="tagb" data-fk="my" data-fv="${esc(t.id)}" aria-pressed="${f.my.includes(t.id)}"><span class="tdot" style="--tg:${tagColor(t)};margin-right:5px"></span>${esc(t.name)}<small>${tagCount(t.id)}</small></button>`).join("")}<button class="tagb" data-opentags="1">${my.tags.length?"Edit my tags":"+ Create a tag"}</button></div></div>
   ${grp("Kind","kd",Object.values(KIND).map(k=>({v:k.filter,c:SES.filter(s=>KIND[s.kind].filter===k.filter).length})).concat([{v:"Cancelled",c:SES.filter(s=>s.cancelled).length}]).filter(x=>x.c))}
   ${grp("Session type","ty",facet("ty",true))}
+  ${grp("Level","lv",facet("lv").sort((a,b)=>a.v.localeCompare(b.v)))}
   ${grp("Topic","tp",facet("tp"))}
   <div class="fgroup"><h3>Tags</h3>${f.tt.length?`<p class="hint" style="margin:0 0 6px">Typed tag words: ${f.tt.map(t=>`"${esc(t)}"`).join(", ")}. Edit them in the Tag list.</p>`:""}${hiddenTagCount()?`<p class="hint" style="margin:0 0 6px;color:var(--now)">${hiddenTagCount()} Not interested tag${hiddenTagCount()===1?"":"s"}. Change them in the Tag list.</p>`:""}<p class="hint" style="margin:0 0 6px">Picking a tag here marks it Interested and turns on Only Interested${ui.tagOnly?` (now on; tags combine using <b>${ui.tagAll?"Match all":"Match any"}</b>)`:""}. Change both in the Tag list.</p><input id="tagq" type="search" placeholder="Search ${TAGLIST.length} tags" aria-label="Search tags" autocomplete="off"><div class="tags" id="ftags">${filterTagsHTML("")}</div></div>
-  ${grp("Level","lv",facet("lv").sort((a,b)=>a.v.localeCompare(b.v)))}
   ${grp("Audience","au",facet("au"))}
   ${grp("Venue","b",[...bld].sort((a,b)=>b[1]-a[1]).map(([v,c])=>({v,c})))}
   ${grp("Attend","dl",facet("dl"))}
