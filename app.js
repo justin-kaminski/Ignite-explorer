@@ -11,6 +11,7 @@ const ICON={
   user:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
   note:'<svg class="i" viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/></svg>',
   x:'<svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  map:'<svg class="i" viewBox="0 0 24 24"><path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>',
   share:'<svg class="i" viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>',
   ext:'<svg class="i" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/></svg>',
   play:'<svg class="i" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>'
@@ -20,6 +21,14 @@ const BUILDING_ORDER=["Chase Center","Moscone South","Moscone West","AMC Metreon
 const TYPE_ORDER=["Breakout","Theater","Lightning Talk","Table Talk","Lab","Digital Lab","Broadcast Stage","Innovation Session","Keynote","Pre-recorded"];
 const TAGC=["--c-brk","--c-tt","--c-lab","--c-bc","--c-lt","--c-inv","--c-key","--c-thr"];
 const ZOOM=[3,4,5,6,8,10,12];
+// Microsoft's venue map (wayfinding.event.microsoft.com) opens focused on a room when given its catalog location.
+const MAP_URL="https://wayfinding.event.microsoft.com/ignite";
+function mapLink(b,r,code){
+  if(!b||b==="Online")return "";
+  const q=new URLSearchParams({nto:r?`${b} | ${r}`:b,npi:"hotels,restaurants,Pharmacies,thingstodo",tz:TZ});
+  if(code)q.set("sc",code);
+  return MAP_URL+"?"+q.toString();
+}
 const shortB=b=>({"AMC Metreon":"Metreon","Marriott Marquis":"Marriott"}[b]||b||"Online");
 const tclass=ty=>"t-"+String(ty||"Other").split(" ")[0].replace(/[^A-Za-z-]/g,"");
 // Session kinds Microsoft mixes into the catalog. Everything stays visible; these get labels and callouts.
@@ -264,7 +273,7 @@ function renderGrid(keepScroll){
     const lane=new Map(),ends=[];
     row.items.forEach(s=>{let li=ends.findIndex(end=>end<=s.s);if(li<0){li=ends.length;ends.push(0)}ends[li]=s.e;lane.set(s.k,li)});
     const lh=Math.max(rowh,...row.items.map(s=>blockH(s,row.pin)))+6,H=ends.length*lh;
-    const label=row.pin?`<b>My schedule</b><span${ends.length>1?' class="cf"':""}>${row.items.length} starred${ends.length>1?", overlaps":""}</span>`:`<b>${esc(row.r||row.b)}</b><span>${esc(shortB(row.b))}</span>`;
+    const label=row.pin?`<b>My schedule</b><span${ends.length>1?' class="cf"':""}>${row.items.length} starred${ends.length>1?", overlaps":""}</span>`:(mapLink(row.b,row.r)?`<a class="rmap" href="${esc(mapLink(row.b,row.r))}" target="_blank" rel="noopener" title="Open ${esc(row.r||row.b)} on Microsoft's venue map"><b>${esc(row.r||row.b)}</b><span>${ICON.map}${esc(shortB(row.b))}</span></a>`:`<b>${esc(row.r||row.b)}</b><span>${esc(shortB(row.b))}</span>`);
     html+=`<div class="grow${row.pin?" pinrow":""}${!row.pin&&lastB!==null&&lastB!==row.b?" bstart":""}" style="height:${H}px"><div class="rlabel">${label}</div><div class="track" style="width:${W}px;--hh:${60*ppm}px;background-position:${-(t0%60)*ppm}px 0">`;
     lastB=row.pin?null:row.b;
     row.items.forEach(s=>{
@@ -683,7 +692,7 @@ function sessionBody(s){
   const when=s.day?`${dayLabel(s.day).long}, ${fmtMin(s.s)} to ${fmtMin(s.e)} PT (${s.e-s.s} min)`:"On demand / online";
   const others=(byCode.get(s.c)||[]).filter(x=>x.k!==s.k);
   const vid=/^https:\/\//i.test(s.vid||"")?s.vid:"";
-  let h=kindCallout(s)+`<div class="actions"><button class="btn${st?" primary":""}" data-star="${esc(s.k)}" aria-pressed="${st}">${ICON.star}${st?"Starred":"Star"}</button><a class="btn" href="https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}" target="_blank" rel="noopener">${ICON.ext}Official page</a><button class="btn" data-share="${esc(s.k)}">${ICON.share}Share</button>${vid?`<a class="btn" href="${esc(vid)}" target="_blank" rel="noopener">${ICON.play}Recording</a>`:""}</div><div class="impstat" id="sharestat" role="status"></div>`;
+  let h=kindCallout(s)+`<div class="actions"><button class="btn${st?" primary":""}" data-star="${esc(s.k)}" aria-pressed="${st}">${ICON.star}${st?"Starred":"Star"}</button><a class="btn" href="https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}" target="_blank" rel="noopener">${ICON.ext}Official page</a>${s.day&&mapLink(s.b,s.r,s.c)?`<a class="btn" href="${esc(mapLink(s.b,s.r,s.c))}" target="_blank" rel="noopener" title="Open this room on Microsoft's venue map">${ICON.map}Map</a>`:""}<button class="btn" data-share="${esc(s.k)}">${ICON.share}Share</button>${vid?`<a class="btn" href="${esc(vid)}" target="_blank" rel="noopener">${ICON.play}Recording</a>`:""}</div><div class="impstat" id="sharestat" role="status"></div>`;
   h+=`<dl class="kv"><dt>When</dt><dd>${esc(when)}${isLive(s,n)?` <b style="color:var(--now)">LIVE NOW</b>`:""}</dd><dt>Where</dt><dd>${esc([s.b,s.r].filter(Boolean).join(", ")||"Online")}</dd><dt>Code</dt><dd>${esc(s.c)}</dd><dt>Type</dt><dd><span class="pill ${tclass(s.ty)}">${esc(s.ty)}</span></dd>`
     +(s.lv.length?`<dt>Level</dt><dd>${esc(s.lv.join(", "))}</dd>`:"")+(s.tp.length?`<dt>Topic</dt><dd>${esc(s.tp.join(", "))}</dd>`:"")+(s.au.length?`<dt>For</dt><dd>${esc(s.au.join(", "))}</dd>`:"")
     +`<dt>Format</dt><dd>${esc(s.dl.join(", "))}${s.rec?", recorded":", not recorded"}${s.seat?", "+esc(s.seat.toLowerCase()):""}</dd>`
@@ -1069,7 +1078,7 @@ function shareText(s){
   const when=s.day?`${dayLabel(s.day).long}, ${fmtMin(s.s)} to ${fmtMin(s.e)} PT`:"On demand";
   const where=[s.b,s.r].filter(Boolean).join(", ")||"Online";
   const notes=[s.cancelled?"Cancelled by Microsoft":"",s.kind!=="inperson"?KIND[s.kind].label:""].filter(Boolean).join(", ");
-  return `${s.c}: ${s.t}${notes?` (${notes})`:""}\n${when}\n${where}${s.spn?"\n"+s.spn:""}\nGuide: ${sessionLink(s.k)}\nOfficial page: https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}`;
+  return `${s.c}: ${s.t}${notes?` (${notes})`:""}\n${when}\n${where}${s.spn?"\n"+s.spn:""}${s.day&&mapLink(s.b,s.r)?"\nMap: "+mapLink(s.b,s.r,s.c):""}\nGuide: ${sessionLink(s.k)}\nOfficial page: https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}`;
 }
 function shareStatus(t){const el=$("#sharestat");if(el)el.textContent=t}
 async function shareSession(k){
