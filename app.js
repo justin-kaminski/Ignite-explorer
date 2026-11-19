@@ -60,10 +60,10 @@ const XKEYS=["xtg","xmy","xtt"],TKEYS=["tg","my","tt",...XKEYS];
 const NOTAGS="__none__";   // pseudo-tag for sessions Microsoft gave no tags
 const ui=(function(){
   const raw=LS("ig-ui")||{};
-  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,alerts:true,urlState:true,agenda:true,tagExpand:false,tagFade:false,geo:false,f:{}};
+  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,alerts:true,urlState:true,agenda:true,tagExpand:false,tagFade:false,tagOnly:false,geo:false,f:{}};
   ["view","day","q"].forEach(k=>{if(typeof raw[k]==="string")u[k]=raw[k]});
   if(!["guide","list","speakers","mine","info"].includes(u.view))u.view="guide";
-  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys","alerts","urlState","agenda","tagExpand","tagFade","geo"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
+  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys","alerts","urlState","agenda","tagExpand","tagFade","tagOnly","geo"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
   if([5,10,15,30].includes(raw.remLead))u.remLead=raw.remLead;
   if(raw.zv===3&&ZOOM.includes(raw.ppm))u.ppm=raw.ppm;
   const f=raw.f&&typeof raw.f==="object"?raw.f:{};
@@ -157,17 +157,23 @@ function matches(s,n,opt){
   if(ui.hidePast&&isPast(s,n))return false;
   return true;
 }
-// Tags: Interested (f.tg/f.my/f.tt) shows only sessions with one of them (or all, with Match all).
-// Not interested (f.xtg/f.xmy/f.xtt) removes sessions with that tag unless they also have an Interested tag.
+// Tags. Unmarked tags never exclude anything.
+// Interested (f.tg/f.my/f.tt): sessions with one always show and get a check mark. With "Only Interested" on,
+// only those sessions show (one or all of the tags, per Match any/all).
+// Not interested (f.xtg/f.xmy/f.xtt): removes sessions with that tag unless they also have an Interested tag.
+function interChecks(s){
+  const f=ui.f,st=sTags.get(s.k)||[],hasTg=t=>t===NOTAGS?!s.tg.length:s.tg.includes(t);
+  return [...f.tg.map(t=>()=>hasTg(t)),...f.my.map(id=>()=>st.includes(id)),...f.tt.map(term=>()=>termMatch(s,term))];
+}
+const isInterested=s=>interestedCount()>0&&interChecks(s).some(c=>c());
 function tagOK(s){
   const f=ui.f;
   if(!tagFilterCount())return true;
-  const st=sTags.get(s.k)||[];
-  const hasTg=t=>t===NOTAGS?!s.tg.length:s.tg.includes(t);
-  const inter=[...f.tg.map(t=>()=>hasTg(t)),...f.my.map(id=>()=>st.includes(id)),...f.tt.map(term=>()=>termMatch(s,term))];
-  if(inter.length&&(ui.tagAll?!inter.every(c=>c()):!inter.some(c=>c())))return false;
-  if((f.xtg.some(hasTg)||f.xmy.some(id=>st.includes(id))||f.xtt.some(term=>termMatch(s,term)))&&!inter.some(c=>c()))return false;
-  return true;
+  const inter=interChecks(s),anyI=inter.some(c=>c());
+  if(ui.tagOnly&&inter.length&&(ui.tagAll?!inter.every(c=>c()):!anyI))return false;
+  if(anyI)return true;
+  const st=sTags.get(s.k)||[],hasTg=t=>t===NOTAGS?!s.tg.length:s.tg.includes(t);
+  return !(f.xtg.some(hasTg)||f.xmy.some(id=>st.includes(id))||f.xtt.some(term=>termMatch(s,term)));
 }
 const filterCount=()=>FKEYS.reduce((a,k)=>a+ui.f[k].length,0);
 const hiddenTagCount=()=>XKEYS.reduce((a,k)=>a+ui.f[k].length,0);
@@ -253,9 +259,12 @@ function setTagState(kind,v,state){
   ui.f[inc]=ui.f[inc].filter(x=>x!==v);ui.f[exc]=ui.f[exc].filter(x=>x!==v);
   if(state==="show")ui.f[inc].push(v);else if(state==="hide")ui.f[exc].push(v);
 }
+// The Filters sheet, the My tags chips and a session's "tap to filter" tags are filters: adding one there marks it
+// Interested and turns on Only Interested; tapping it again clears it.
+function filterTag(kind,v){if(tagState(kind,v)==="show")setTagState(kind,v,"");else{setTagState(kind,v,"show");ui.tagOnly=true}}
 function cycleTag(kind,v){const cur=tagState(kind,v);setTagState(kind,v,cur==="show"?"hide":cur==="hide"?"":"show")}
 const tagName=(kind,v)=>kind==="my"?((tagById(v)||{}).name||""):kind==="tt"?`"${v}"`:v===NOTAGS?"No tags":v;
-const STATE_TIP={show:"Interested: only sessions with an Interested tag show. Tap for Not interested",hide:"Not interested: sessions with this are removed unless they also have an Interested tag. Tap to clear",off:"Tap to mark Interested"};
+const STATE_TIP={show:"Interested: sessions with this always show and get a check mark. Tap for Not interested",hide:"Not interested: sessions with this are removed unless they also have an Interested tag. Tap to clear",off:"Tap to mark Interested"};
 const STATE_MARK={show:"&#10003; ",hide:"&minus; ",off:""};
 function tagChip(kind,v,state){
   const name=tagName(kind,v);if(!name)return "";
@@ -266,13 +275,15 @@ function renderTagPanel(){
   const f=ui.f;
   $("#mAny").setAttribute("aria-pressed",!ui.tagAll);$("#mAll").setAttribute("aria-pressed",ui.tagAll);
   $("#tFade").setAttribute("aria-pressed",ui.tagFade);
+  $("#tOnly").setAttribute("aria-pressed",ui.tagOnly);
+  $("#mAny").parentElement.hidden=!ui.tagOnly;
   $("#tagexp").textContent=ui.tagExpand?"Show fewer":"Expand list";
   $("#taglistp").classList.toggle("big",ui.tagExpand);
   const hidden=[...f.xtt.map(v=>["tt",v]),...f.xtg.map(v=>["tg",v]),...f.xmy.map(v=>["my",v])];
   const chips=[...f.tt.map(v=>tagChip("tt",v,"show")),...f.tg.map(v=>tagChip("tg",v,"show")),...f.my.map(v=>tagChip("my",v,"show"))];
   if(hidden.length>12)chips.push(`<span class="tchip st-hide" style="--tg:var(--now)"><span class="tflip">&minus; ${hidden.length} tags not interested</span><button id="unhideall" aria-label="Clear all Not interested tags">${ICON.x}</button></span>`);
   else hidden.forEach(([k,v])=>chips.push(tagChip(k,v,"hide")));
-  const help=`Tap a tag to cycle: off, &#10003; Interested, &minus; Not interested. Interested shows only sessions with ${ui.tagAll?"all":"one"} of those tags. Not interested removes sessions with that tag unless they also have an Interested tag. Type words and press Enter to add them; start with - for Not interested.${ui.tagFade?" Fade is on: sessions that don't match stay in place, dimmed.":""}`;
+  const help=`Tap a tag to cycle: off, &#10003; Interested, &minus; Not interested. Tags you leave off never hide anything. Not interested removes sessions with that tag unless they also have an Interested tag. Interested sessions always show and get a &#10003;${ui.tagOnly?`; Only Interested is on, so only sessions with ${ui.tagAll?"all":"one"} of your Interested tags show`:""}. Type words and press Enter to add them; start with - for Not interested.${ui.tagFade?" Fade is on: removed sessions stay in place, dimmed.":""}`;
   $("#tagsel").innerHTML=chips.filter(Boolean).join("")+`<span class="hint" style="flex-basis:100%">${help}</span>`;
   renderTagList();
 }
@@ -354,7 +365,7 @@ function renderGrid(keepScroll){
     lastB=row.pin?null:row.b;
     row.items.forEach(s=>{
       const st=my.stars.has(s.k),tk=isTrk(s),nt=my.notes.has(s.c),fc=flagCount(s);
-      const flags=sessionTags(s).slice(0,3).map(t=>`<span class="tdot" style="--tg:${tagColor(t)}" title="${esc(t.name)}"></span>`).join("")+(st?`<span class="fstar">${ICON.star}</span>`:"")+(tk?`<span class="ffol">${ICON.user}</span>`:"")+(nt?`<span>${ICON.note}</span>`:"");
+      const flags=(isInterested(s)?`<span class="fint" title="Has an Interested tag">&#10003;</span>`:"")+sessionTags(s).slice(0,3).map(t=>`<span class="tdot" style="--tg:${tagColor(t)}" title="${esc(t.name)}"></span>`).join("")+(st?`<span class="fstar">${ICON.star}</span>`:"")+(tk?`<span class="ffol">${ICON.user}</span>`:"")+(nt?`<span>${ICON.note}</span>`:"");
       html+=`<button class="blk ${tclass(s.ty)} k-${s.kind}${s.cancelled?" cx":""}${st?" star":""}${tk?" trk":""}${!row.pin&&FADED.has(s.k)?" faded":""}${statusClasses(s,n)}" data-k="${esc(s.k)}" style="left:${(s.s-t0)*ppm+1}px;width:${bw(s)}px;top:${lane.get(s.k)*lh+3}px;height:${lh-6}px" title="${esc(s.t)}">`
         +(flags?`<span class="flags">${flags}</span>`:"")
         +(s.kind!=="inperson"||s.cancelled?`<span class="kline">${kindBadge(s)}${s.main?` streams ${esc(s.main.c)}`:""}</span>`:"")
@@ -401,7 +412,7 @@ function cardHTML(s,n,extra){
   const spk=s.sp.map(id=>SPK.get(id)).filter(Boolean).map(p=>my.follow.has(p.id)?`<span class="f">${esc(p.n)}</span>`:esc(p.n)).join(", ");
   const when=s.day?`<span class="tm">${extra.showDay?esc(dayLabel(s.day).w)+" ":""}${fmtMinShort(s.s)}-${fmtMinShort(s.e)}</span>`:`<span class="tm">On demand</span>`;
   const tags=sessionTags(s).map(t=>`<span style="--tg:${tagColor(t)};display:inline-flex;align-items:center;gap:4px"><span class="tdot"></span>${esc(t.name)}</span>`).join("");
-  return `<div class="card ${tclass(s.ty)} k-${s.kind}${s.cancelled?" cx":""}${st?" star":""}${extra.fade&&FADED.has(s.k)?" faded":""}${statusClasses(s,n)}" data-card="${esc(s.k)}"><button class="main" data-k="${esc(s.k)}"><span class="ct">${esc(s.t)}</span><span class="cm">${when}${kindBadge(s)}<span class="pill">${esc(s.ty)}</span><span>${esc(s.c)}</span><span>${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>${my.notes.has(s.c)?`<span>${ICON.note}</span>`:""}${tags}</span>${spk?`<span class="cs">${spk}</span>`:""}${extra.warn?`<span class="warn">${esc(extra.warn)}</span>`:""}</button><button class="starbtn" data-star="${esc(s.k)}" aria-pressed="${st}" aria-label="${st?"Unstar":"Star"} ${esc(s.t)}">${ICON.star}</button></div>`;
+  return `<div class="card ${tclass(s.ty)} k-${s.kind}${s.cancelled?" cx":""}${st?" star":""}${extra.fade&&FADED.has(s.k)?" faded":""}${statusClasses(s,n)}" data-card="${esc(s.k)}"><button class="main" data-k="${esc(s.k)}"><span class="ct">${esc(s.t)}</span><span class="cm">${when}${kindBadge(s)}${isInterested(s)?`<span class="cint" title="Has an Interested tag">&#10003; Interested</span>`:""}<span class="pill">${esc(s.ty)}</span><span>${esc(s.c)}</span><span>${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>${my.notes.has(s.c)?`<span>${ICON.note}</span>`:""}${tags}</span>${spk?`<span class="cs">${spk}</span>`:""}${extra.warn?`<span class="warn">${esc(extra.warn)}</span>`:""}</button><button class="starbtn" data-star="${esc(s.k)}" aria-pressed="${st}" aria-label="${st?"Unstar":"Star"} ${esc(s.t)}">${ICON.star}</button></div>`;
 }
 function overlapMap(list){
   const m=new Map();
@@ -781,7 +792,7 @@ function agendaGroups(day){
 }
 const agFind=id=>{const day=id.slice(3,13);return agendaGroups(day).find(g=>g.id===id)};
 // Agenda entries step aside while a search, filter or the Starred / Followed toggles narrow things down.
-const showAgendaHere=()=>ui.agenda&&ui.day!=="od"&&!ui.q&&!(filterCount()-hiddenTagCount())&&!ui.onlyStar&&!ui.onlyTrk;
+const showAgendaHere=()=>ui.agenda&&ui.day!=="od"&&!ui.q&&!(filterCount()-tagFilterCount()+(ui.tagOnly?interestedCount():0))&&!ui.onlyStar&&!ui.onlyTrk;
 function agendaFor(day,n){return showAgendaHere()?agendaGroups(day).filter(g=>!(ui.hidePast&&agStatus(g,n)==="past")):[]}
 function agPlacesLabel(g){return g.places.length===1?agPlace(g.places[0]):`${g.places.length} places`}
 function openAgenda(id){
@@ -986,7 +997,7 @@ function filterBody(){
   ${grp("Kind","kd",Object.values(KIND).map(k=>({v:k.filter,c:SES.filter(s=>KIND[s.kind].filter===k.filter).length})).concat([{v:"Cancelled",c:SES.filter(s=>s.cancelled).length}]).filter(x=>x.c))}
   ${grp("Session type","ty",facet("ty",true))}
   ${grp("Topic","tp",facet("tp"))}
-  <div class="fgroup"><h3>Tags</h3>${f.tt.length?`<p class="hint" style="margin:0 0 6px">Typed tag words: ${f.tt.map(t=>`"${esc(t)}"`).join(", ")}. Edit them in the Tag list.</p>`:""}${hiddenTagCount()?`<p class="hint" style="margin:0 0 6px;color:var(--now)">${hiddenTagCount()} Not interested tag${hiddenTagCount()===1?"":"s"}. Change them in the Tag list.</p>`:""}<p class="hint" style="margin:0 0 6px">Tags, your tags and typed tag words combine using <b>${ui.tagAll?"Match all":"Match any"}</b>, set in the Tag list.</p><input id="tagq" type="search" placeholder="Search ${TAGLIST.length} tags" aria-label="Search tags" autocomplete="off"><div class="tags" id="ftags">${filterTagsHTML("")}</div></div>
+  <div class="fgroup"><h3>Tags</h3>${f.tt.length?`<p class="hint" style="margin:0 0 6px">Typed tag words: ${f.tt.map(t=>`"${esc(t)}"`).join(", ")}. Edit them in the Tag list.</p>`:""}${hiddenTagCount()?`<p class="hint" style="margin:0 0 6px;color:var(--now)">${hiddenTagCount()} Not interested tag${hiddenTagCount()===1?"":"s"}. Change them in the Tag list.</p>`:""}<p class="hint" style="margin:0 0 6px">Picking a tag here marks it Interested and turns on Only Interested${ui.tagOnly?` (now on; tags combine using <b>${ui.tagAll?"Match all":"Match any"}</b>)`:""}. Change both in the Tag list.</p><input id="tagq" type="search" placeholder="Search ${TAGLIST.length} tags" aria-label="Search tags" autocomplete="off"><div class="tags" id="ftags">${filterTagsHTML("")}</div></div>
   ${grp("Level","lv",facet("lv").sort((a,b)=>a.v.localeCompare(b.v)))}
   ${grp("Audience","au",facet("au"))}
   ${grp("Venue","b",[...bld].sort((a,b)=>b[1]-a[1]).map(([v,c])=>({v,c})))}
@@ -1254,10 +1265,11 @@ document.addEventListener("click",e=>{
   if(d.clearty){ui.f.ty=[];render();return}
   if(d.rmterm!=null){ui.f.tt=ui.f.tt.filter(x=>x!==d.rmterm);render();return}
   if(d.opentags){openTagManager();return}
-  if(d.mytag){toggleIn(ui.f.my,d.mytag);render();return}
+  if(d.mytag){filterTag("my",d.mytag);render();return}
   if(d.newtag){if(addTag($("#ntname").value,$("#ntq").value)){rerenderManager();softRender()}return}
   if(d.sugg!=null){const g=SUGG[+d.sugg];if(g){addTag(g.name,g.q);rerenderManager();softRender()}return}
   if(d.deltag){if(t.classList.contains("arm")){deleteTag(d.deltag);rerenderManager();softRender()}else{t.classList.add("arm");t.textContent="Confirm delete"}return}
+  if(d.fk==="tg"||d.fk==="my"){filterTag(d.fk,d.fv);if(t.closest("#tagpanel"))$("#tagin").value="";softRender();return}
   if(d.fk){toggleIn(ui.f[d.fk],d.fv);if(t.closest("#tagpanel"))$("#tagin").value="";softRender();return}
   if(d.fclear){FKEYS.forEach(k=>ui.f[k]=[]);softRender();return}
   if(d.import){openImport();return}
@@ -1297,6 +1309,7 @@ $("#tagin").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault(
 $("#tagadd").addEventListener("click",()=>addTerms($("#tagin").value));
 $("#tagclr").addEventListener("click",()=>{TKEYS.forEach(k=>ui.f[k]=[]);$("#tagin").value="";render()});
 $("#tFade").addEventListener("click",()=>{ui.tagFade=!ui.tagFade;render()});
+$("#tOnly").addEventListener("click",()=>{ui.tagOnly=!ui.tagOnly;render()});
 $("#tagexp").addEventListener("click",()=>{ui.tagExpand=!ui.tagExpand;render()});
 $("#mAny").addEventListener("click",()=>{ui.tagAll=false;render()});
 $("#mAll").addEventListener("click",()=>{ui.tagAll=true;render()});

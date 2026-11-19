@@ -6,7 +6,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- Standalone copy of Ignite Explorer. Generated from the claude.ai version; data loads from data.json. -->
-<link rel="stylesheet" href="fonts.css?v=c44e3d2386">
+<link rel="stylesheet" href="fonts.css?v=b1b6952d4d">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
 <title>Ignite Session Guide</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -305,6 +305,8 @@ main{flex:1;min-height:0;position:relative}
 .tagb.ls-show{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,var(--surface))}
 .tagb.ls-hide{border-color:var(--now);color:var(--now);text-decoration:line-through;background:color-mix(in srgb,var(--now) 8%,var(--surface))}
 .tagb.ls-show{font-weight:600}
+.fint{color:var(--c-lab);font-weight:700;font-size:12px;line-height:1}
+.cint{color:var(--c-lab);font-weight:600;white-space:nowrap}
 .blk.faded,.card.faded{opacity:.28;filter:saturate(.3)}
 .blk.faded:hover,.blk.faded:focus-visible,.card.faded:hover{opacity:.75}
 .tchip.st-hide{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--now) 70%,transparent)}
@@ -450,6 +452,7 @@ code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);bor
   <div class="tagpanel" id="tagpanel" hidden>
     <div class="tp1">
       <div class="inline"><input id="tagin" type="search" placeholder="Type tags, e.g. copilot, azure (start with - for Not interested)" autocomplete="off" aria-label="Type tags to filter on"><button class="btn" id="tagadd">Add</button></div>
+      <button class="tog" id="tOnly" aria-pressed="false" title="Show only sessions that have your Interested tags">Only Interested</button>
       <div class="seg" role="group" aria-label="How tags combine"><button id="mAny" aria-pressed="true">Match any</button><button id="mAll" aria-pressed="false">Match all</button></div>
       <button class="tog" id="tFade" aria-pressed="false" title="Keep sessions that don't match your tags in the guide, dimmed">Fade instead of remove</button>
       <button class="tog" id="tagexp">Expand list</button>
@@ -470,6 +473,6 @@ code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);bor
 <div id="sheetroot"></div>
 <div id="toasts" aria-live="polite"></div>
 
-<script src="app.js?v=c44e3d2386"></script>
+<script src="app.js?v=b1b6952d4d"></script>
 </body>
 </html>
