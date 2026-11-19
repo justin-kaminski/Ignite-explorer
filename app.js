@@ -166,6 +166,7 @@ function renderChrome(n){
   $("#tTags").setAttribute("aria-pressed",ui.tagPanel);$("#tagn").textContent=tsel?` (${tsel})`:"";
   $("#tagpanel").hidden=!(ui.tagPanel&&showDays);
   if(ui.tagPanel&&showDays)renderTagPanel();
+  renderFilterNote(showDays);
   $("#tKey").setAttribute("aria-pressed",ui.legend);
   $("#legend").hidden=!(ui.legend&&showDays);
   if(ui.legend&&showDays)renderLegend(n);
@@ -174,6 +175,22 @@ function renderChrome(n){
 }
 const currentPane=()=>ui.view==="guide"?(ui.day==="od"?"listv":"grid"):ui.view==="list"?"listv":ui.view==="speakers"?"spkv":ui.view==="info"?"infov":"minev";
 
+// Say plainly when toggles, search or filters are hiding sessions on the selected day, with one tap to show all.
+function renderFilterNote(show){
+  const el=$("#filternote");if(!el)return;
+  const inDay=s=>ui.day==="od"?!s.day:s.day===ui.day;
+  const total=SES.filter(inDay).length,shown=M.filter(inDay).length;
+  if(!show||shown>=total){el.hidden=true;return}
+  const why=[];
+  if(ui.onlyStar)why.push("Starred only");
+  if(ui.onlyTrk)why.push("Followed speakers only");
+  if(ui.hidePast)why.push("Hide ended");
+  if(ui.q)why.push(`search "${ui.q}"`);
+  const fc=filterCount();if(fc)why.push(`${fc} filter${fc===1?"":"s"}`);
+  const day=ui.day==="od"?"on demand":"on "+dayLabel(ui.day).long;
+  el.innerHTML=`<span>Showing ${shown} of ${total} sessions ${esc(day)}${why.length?" · "+esc(why.join(", ")):""}</span><button class="tog" id="showall">Show all</button>`;
+  el.hidden=false;
+}
 function renderLegend(n){
   const pool=SES.filter(s=>ui.day==="od"?!s.day:s.day===ui.day);
   const cnt=new Map();pool.forEach(s=>{if(matches(s,n,{ignoreTy:true}))cnt.set(s.ty,(cnt.get(s.ty)||0)+1)});
@@ -1146,6 +1163,7 @@ document.addEventListener("click",e=>{
     case "impstar":starImported();return;
     case "icsbtn":downloadICS();return;
     case "copycodes":copyCodes();return;
+    case "showall":ui.onlyStar=ui.onlyTrk=ui.hidePast=false;ui.q="";$("#q").value="";FKEYS.forEach(k=>ui.f[k]=[]);render();return;
     case "xfercopy":copyTransfer();return;
     case "xfershare":shareTransfer();return;
     case "xfermerge":if(openSheet&&openSheet.data)mergeTransfer(openSheet.data);return;
