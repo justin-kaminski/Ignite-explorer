@@ -55,14 +55,15 @@ const isLive=(s,n)=>s.day===n.day&&s.s<=n.min&&s.e>n.min;
 const byTime=(a,b)=>(a.day||"z").localeCompare(b.day||"z")||(a.s||0)-(b.s||0)||a.t.localeCompare(b.t);
 
 // ================= view state (this browser only) =================
-const FKEYS=["ty","kd","tp","lv","au","b","dl","tg","rec","my","tt","xtg","xmy","xtt"];
-const XKEYS=["xtg","xmy","xtt"];
+const FKEYS=["ty","kd","tp","lv","au","b","dl","tg","rec","my","tt","xtg","xmy","xtt","ktg","kmy"];
+const XKEYS=["xtg","xmy","xtt"],KKEYS=["ktg","kmy"];
+const NOTAGS="__none__";   // pseudo-tag for sessions Microsoft gave no tags
 const ui=(function(){
   const raw=LS("ig-ui")||{};
-  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,alerts:true,urlState:true,agenda:true,tagHide:false,f:{}};
+  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,alerts:true,urlState:true,agenda:true,tagHide:false,tagExpand:false,f:{}};
   ["view","day","q"].forEach(k=>{if(typeof raw[k]==="string")u[k]=raw[k]});
   if(!["guide","list","speakers","mine","info"].includes(u.view))u.view="guide";
-  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys","alerts","urlState","agenda","tagHide"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
+  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys","alerts","urlState","agenda","tagHide","tagExpand"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
   if([5,10,15,30].includes(raw.remLead))u.remLead=raw.remLead;
   if(raw.zv===3&&ZOOM.includes(raw.ppm))u.ppm=raw.ppm;
   const f=raw.f&&typeof raw.f==="object"?raw.f:{};
@@ -137,14 +138,16 @@ function matches(s,n,opt){
   if(f.b.length&&!f.b.includes(s.b||"Online"))return false;
   if(f.dl.length&&!s.dl.some(x=>f.dl.includes(x)))return false;
   if(f.rec.length&&!f.rec.includes(s.rec?"Recorded":"Not recorded"))return false;
-  if(f.tg.length||f.my.length||f.tt.length){
+  if(f.tg.length||f.my.length||f.tt.length||f.xtg.length||f.xmy.length||f.xtt.length){
     const st=sTags.get(s.k)||[];
-    const checks=[...f.tg.map(t=>()=>s.tg.includes(t)),...f.my.map(id=>()=>st.includes(id)),...f.tt.map(term=>()=>termMatch(s,term))];
-    if(ui.tagAll?!checks.every(c=>c()):!checks.some(c=>c()))return false;
-  }
-  if(f.xtg.length||f.xmy.length||f.xtt.length){
-    const st=sTags.get(s.k)||[];
-    if(f.xtg.some(t=>s.tg.includes(t))||f.xmy.some(id=>st.includes(id))||f.xtt.some(term=>termMatch(s,term)))return false;
+    const hasTg=t=>t===NOTAGS?!s.tg.length:s.tg.includes(t);
+    if(f.tg.length||f.my.length||f.tt.length){
+      const checks=[...f.tg.map(t=>()=>hasTg(t)),...f.my.map(id=>()=>st.includes(id)),...f.tt.map(term=>()=>termMatch(s,term))];
+      if(ui.tagAll?!checks.every(c=>c()):!checks.some(c=>c()))return false;
+    }
+    // A hidden tag removes the session unless it also has a kept or shown tag.
+    if((f.xtg.some(hasTg)||f.xmy.some(id=>st.includes(id))||f.xtt.some(term=>termMatch(s,term)))
+       &&!(f.ktg.some(hasTg)||f.kmy.some(id=>st.includes(id))||f.tg.some(hasTg)||f.my.some(id=>st.includes(id))||f.tt.some(term=>termMatch(s,term))))return false;
   }
   if(ui.onlyTrk&&!isTrk(s))return false;
   if(ui.onlyStar&&!my.stars.has(s.k))return false;
@@ -153,6 +156,7 @@ function matches(s,n,opt){
 }
 const filterCount=()=>FKEYS.reduce((a,k)=>a+ui.f[k].length,0);
 const hiddenTagCount=()=>XKEYS.reduce((a,k)=>a+ui.f[k].length,0);
+const keptTagCount=()=>KKEYS.reduce((a,k)=>a+ui.f[k].length,0);
 
 // ================= render: header =================
 let M=[];   // sessions matching everything, computed once per render
@@ -166,10 +170,10 @@ function renderChrome(n){
   $("#quick").hidden=!showDays;
   $("#tTrk").setAttribute("aria-pressed",ui.onlyTrk);$("#tStar").setAttribute("aria-pressed",ui.onlyStar);$("#tPast").setAttribute("aria-pressed",ui.hidePast);
   $("#mytagchips").innerHTML=my.tags.map(t=>`<button class="mtag" data-mytag="${esc(t.id)}" aria-pressed="${ui.f.my.includes(t.id)}" style="--tg:${tagColor(t)}"><span class="tdot"></span>${esc(t.name)}</button>`).join("");
-  const fc=filterCount();$("#fcount").hidden=!fc;$("#fcount").textContent=fc;
+  const fc=filterCount()-hiddenTagCount()-keptTagCount();$("#fcount").hidden=!fc;$("#fcount").textContent=fc;
   $("#qclear").hidden=!ui.q;
-  const tsel=ui.f.tg.length+ui.f.my.length+ui.f.tt.length+hiddenTagCount();
-  $("#tTags").setAttribute("aria-pressed",ui.tagPanel);$("#tagn").textContent=tsel?` (${tsel})`:"";
+  const tsel=ui.f.tg.length+ui.f.my.length+ui.f.tt.length+keptTagCount(),thid=hiddenTagCount();
+  $("#tTags").setAttribute("aria-pressed",ui.tagPanel);$("#tagn").textContent=tsel||thid?` (${[tsel?tsel:"",thid?thid+" hidden":""].filter(Boolean).join(" · ")})`:"";
   $("#tagpanel").hidden=!(ui.tagPanel&&showDays);
   if(ui.tagPanel&&showDays)renderTagPanel();
   renderFilterNote(showDays);
@@ -193,7 +197,7 @@ function renderFilterNote(show){
   if(ui.onlyTrk)why.push("Followed speakers only");
   if(ui.hidePast)why.push("Hide ended");
   if(ui.q)why.push(`search "${ui.q}"`);
-  const xc=hiddenTagCount(),fc=filterCount()-xc;if(fc)why.push(`${fc} filter${fc===1?"":"s"}`);if(xc)why.push(`${xc} hidden tag${xc===1?"":"s"}`);
+  const xc=hiddenTagCount(),kc=keptTagCount(),fc=filterCount()-xc-kc;if(fc)why.push(`${fc} filter${fc===1?"":"s"}`);if(xc)why.push(`${xc} hidden tag${xc===1?"":"s"}${kc?`, ${kc} kept`:""}`);
   const day=ui.day==="od"?"on demand":"on "+dayLabel(ui.day).long;
   el.innerHTML=`<span>Showing ${shown} of ${total} sessions ${esc(day)}${why.length?" · "+esc(why.join(", ")):""}</span><button class="tog" id="showall">Show all</button>`;
   el.hidden=false;
@@ -222,40 +226,54 @@ function renderLegend(n){
   $("#legend").innerHTML=h;
 }
 
-// Tag list: tags can be shown (filter to them) or hidden (remove sessions that have them).
-// Include lists: f.tg (Microsoft tags), f.my (my tags), f.tt (typed words). Hidden: f.xtg, f.xmy, f.xtt.
-const TAGKEYS={tg:["tg","xtg"],my:["my","xmy"],tt:["tt","xtt"]};
-function tagState(kind,v){const [inc,exc]=TAGKEYS[kind];return ui.f[inc].includes(v)?"show":ui.f[exc].includes(v)?"hide":""}
+// Tag list. Each tag is off, shown (Show only filter), hidden (remove sessions with it) or kept
+// (never hide sessions with it). Lists: f.tg/f.my/f.tt shown, f.xtg/f.xmy/f.xtt hidden, f.ktg/f.kmy kept.
+const TAGKEYS={tg:["tg","xtg","ktg"],my:["my","xmy","kmy"],tt:["tt","xtt",null]};
+function tagState(kind,v){const [inc,exc,kp]=TAGKEYS[kind];return ui.f[inc].includes(v)?"show":ui.f[exc].includes(v)?"hide":kp&&ui.f[kp].includes(v)?"keep":""}
 function setTagState(kind,v,state){
-  const [inc,exc]=TAGKEYS[kind];
-  ui.f[inc]=ui.f[inc].filter(x=>x!==v);ui.f[exc]=ui.f[exc].filter(x=>x!==v);
-  if(state==="show")ui.f[inc].push(v);else if(state==="hide")ui.f[exc].push(v);
+  const [inc,exc,kp]=TAGKEYS[kind];
+  [inc,exc,kp].filter(Boolean).forEach(k=>{ui.f[k]=ui.f[k].filter(x=>x!==v)});
+  if(state==="show")ui.f[inc].push(v);else if(state==="hide")ui.f[exc].push(v);else if(state==="keep"&&kp)ui.f[kp].push(v);
 }
+// Show mode: off <-> show. Hide mode: off -> hide, then hide <-> keep (typed words have no keep).
+// The x on a chip, or Clear tags, turns a tag fully off.
+function cycleTag(kind,v){
+  const cur=tagState(kind,v);
+  if(!ui.tagHide)return setTagState(kind,v,cur==="show"?"":"show");
+  setTagState(kind,v,cur==="hide"?(kind==="tt"?"":"keep"):"hide");
+}
+const tagName=(kind,v)=>kind==="my"?((tagById(v)||{}).name||""):kind==="tt"?`"${v}"`:v===NOTAGS?"No tags":v;
+const STATE_TIP={show:"Show only: sessions must have one of these",hide:"Hidden: sessions with this are removed unless they have a kept or shown tag",keep:"Kept: sessions with this always show, even with hidden tags"};
 function tagChip(kind,v,state){
-  const t=kind==="my"?tagById(v):null;if(kind==="my"&&!t)return "";
-  const name=kind==="my"?t.name:kind==="tt"?`"${v}"`:v;
-  const color=kind==="my"?tagColor(t):kind==="tt"?"var(--muted)":"var(--accent)";
-  const hide=state==="hide";
-  return `<span class="tchip${hide?" xchip":""}${kind==="tt"?" tterm":""}" style="--tg:${hide?"var(--now)":color}"><button class="tflip" data-tflip="${kind}" data-tv="${esc(v)}" title="${hide?"Hidden: sessions with this tag are removed. Tap to show only these instead":"Showing only sessions with this. Tap to hide them instead"}">${hide?"&minus; ":""}${kind==="my"?'<span class="tdot"></span>':""}${esc(name)}</button><button data-tset="${kind}" data-tv="${esc(v)}" data-ts="" aria-label="Remove ${esc(name)}">${ICON.x}</button></span>`;
+  const name=tagName(kind,v);if(!name)return "";
+  const t=kind==="my"?tagById(v):null,mark=state==="hide"?"&minus; ":state==="keep"?"&#10003; ":"";
+  return `<span class="tchip st-${state}${kind==="tt"?" tterm":""}" style="--tg:${state==="hide"?"var(--now)":state==="keep"?"var(--c-lab)":kind==="my"?tagColor(t):kind==="tt"?"var(--muted)":"var(--accent)"}" title="${esc(STATE_TIP[state])}"><button class="tflip" data-tcyc="${kind}" data-tv="${esc(v)}">${mark}${kind==="my"?'<span class="tdot"></span>':""}${esc(name)}</button><button data-tset="${kind}" data-tv="${esc(v)}" data-ts="" aria-label="Clear ${esc(name)}">${ICON.x}</button></span>`;
 }
 function renderTagPanel(){
   const f=ui.f;
   $("#mAny").setAttribute("aria-pressed",!ui.tagAll);$("#mAll").setAttribute("aria-pressed",ui.tagAll);
   $("#mShow").setAttribute("aria-pressed",!ui.tagHide);$("#mHide").setAttribute("aria-pressed",ui.tagHide);
+  $("#taghideall").hidden=!ui.tagHide;
+  $("#tagexp").textContent=ui.tagExpand?"Show fewer":"Expand list";
+  $("#taglistp").classList.toggle("big",ui.tagExpand);
   $("#tagin").placeholder=ui.tagHide?"Type tags to hide, e.g. copilot, partner":"Type tags, e.g. github copilot, azure, ai (start with - to hide)";
-  const sel=[...f.tt.map(v=>tagChip("tt",v,"show")),...f.tg.map(v=>tagChip("tg",v,"show")),...f.my.map(v=>tagChip("my",v,"show")),
-             ...f.xtt.map(v=>tagChip("tt",v,"hide")),...f.xtg.map(v=>tagChip("tg",v,"hide")),...f.xmy.map(v=>tagChip("my",v,"hide"))].filter(Boolean);
-  $("#tagsel").innerHTML=sel.length?sel.join(""):`<span class="hint">${ui.tagHide?"Tap a tag below to hide every session that has it.":"Tap tags below, or type words and press Enter."} ${ui.tagAll?"Match all":"Match any"} decides whether a session needs one or all of the shown tags. Hidden tags always remove sessions. Tap a selected tag to switch it between show and hide.</span>`;
+  const hidden=[...f.xtt.map(v=>["tt",v]),...f.xtg.map(v=>["tg",v]),...f.xmy.map(v=>["my",v])];
+  const chips=[...f.tt.map(v=>tagChip("tt",v,"show")),...f.tg.map(v=>tagChip("tg",v,"show")),...f.my.map(v=>tagChip("my",v,"show")),
+               ...f.ktg.map(v=>tagChip("tg",v,"keep")),...f.kmy.map(v=>tagChip("my",v,"keep"))];
+  if(hidden.length>12)chips.push(`<span class="tchip st-hide" style="--tg:var(--now)"><span class="tflip">&minus; ${hidden.length} tags hidden</span><button id="unhideall" aria-label="Unhide all">${ICON.x}</button></span>`);
+  else hidden.forEach(([k,v])=>chips.push(tagChip(k,v,"hide")));
+  const help=ui.tagHide?"Hide mode: tap a tag to hide it; tap a hidden tag to keep it (sessions with a kept tag always show, even with hidden tags), tap again to hide it. Tip: Hide all, then tap the tags you want to see. The x on a chip clears a tag.":"Show only mode: tap tags to show only sessions that have them. "+(ui.tagAll?"Match all":"Match any")+" decides whether a session needs one or all of them.";
+  $("#tagsel").innerHTML=(chips.filter(Boolean).join("")||"")+`<span class="hint" style="flex-basis:100%">${help}</span>`;
   renderTagList();
 }
 function renderTagList(){
   const last=(($("#tagin").value||"").split(",").pop()||"").replace(/^\s*-/,"").trim().toLowerCase();
-  const mine=my.tags.filter(t=>!tagState("my",t.id)&&(!last||t.name.toLowerCase().includes(last)));
-  const ms=TAGLIST.filter(t=>!tagState("tg",t.v)&&(!last||t.v.toLowerCase().includes(last)));
-  const st=ui.tagHide?"hide":"show";
-  let h=mine.map(t=>`<button class="tagb${ui.tagHide?" hidepick":""}" data-tset="my" data-tv="${esc(t.id)}" data-ts="${st}" style="--tg:${tagColor(t)}"><span class="tdot" style="margin-right:5px"></span>${esc(t.name)}<small>${tagCount(t.id)}</small></button>`).join("")
-       +ms.map(t=>`<button class="tagb${ui.tagHide?" hidepick":""}" data-tset="tg" data-tv="${esc(t.v)}" data-ts="${st}">${esc(t.v)}<small>${t.c}</small></button>`).join("");
-  if(last&&!h)h=`<span class="hint">No tag contains "${esc(last)}". Press Enter to ${ui.tagHide?"hide":"filter on"} it as a word anyway.</span>`;
+  const noTagCount=SES.filter(x=>!x.tg.length).length;
+  const items=[...my.tags.map(t=>({kind:"my",v:t.id,name:t.name,c:tagCount(t.id),t})),{kind:"tg",v:NOTAGS,name:"No tags",c:noTagCount},...TAGLIST.map(t=>({kind:"tg",v:t.v,name:t.v,c:t.c}))]
+    .filter(x=>!last||x.name.toLowerCase().includes(last));
+  let h=items.map(x=>{const st=tagState(x.kind,x.v);
+    return `<button class="tagb ls-${st||"off"}" data-tcyc="${x.kind}" data-tv="${esc(x.v)}" title="${esc(st?STATE_TIP[st]:ui.tagHide?"Tap to hide":"Tap to show only this")}"${x.kind==="my"?` style="--tg:${tagColor(x.t)}"`:""}>${st==="hide"?"&minus; ":st==="keep"?"&#10003; ":""}${x.kind==="my"?'<span class="tdot" style="margin-right:5px"></span>':""}${esc(x.name)}<small>${x.c}</small></button>`}).join("");
+  if(last&&!items.length)h=`<span class="hint">No tag contains "${esc(last)}". Press Enter to ${ui.tagHide?"hide":"filter on"} it as a word anyway.</span>`;
   $("#taglistp").innerHTML=h;
 }
 function addTerms(raw){
@@ -753,7 +771,7 @@ function agendaGroups(day){
 }
 const agFind=id=>{const day=id.slice(3,13);return agendaGroups(day).find(g=>g.id===id)};
 // Agenda entries step aside while a search, filter or the Starred / Followed toggles narrow things down.
-const showAgendaHere=()=>ui.agenda&&ui.day!=="od"&&!ui.q&&!(filterCount()-hiddenTagCount())&&!ui.onlyStar&&!ui.onlyTrk;
+const showAgendaHere=()=>ui.agenda&&ui.day!=="od"&&!ui.q&&!(filterCount()-hiddenTagCount()-keptTagCount())&&!ui.onlyStar&&!ui.onlyTrk;
 function agendaFor(day,n){return showAgendaHere()?agendaGroups(day).filter(g=>!(ui.hidePast&&agStatus(g,n)==="past")):[]}
 function agPlacesLabel(g){return g.places.length===1?agPlace(g.places[0]):`${g.places.length} places`}
 function openAgenda(id){
@@ -956,7 +974,7 @@ function filterBody(){
   ${grp("Kind","kd",Object.values(KIND).map(k=>({v:k.filter,c:SES.filter(s=>KIND[s.kind].filter===k.filter).length})).concat([{v:"Cancelled",c:SES.filter(s=>s.cancelled).length}]).filter(x=>x.c))}
   ${grp("Session type","ty",facet("ty",true))}
   ${grp("Topic","tp",facet("tp"))}
-  <div class="fgroup"><h3>Tags</h3>${f.tt.length?`<p class="hint" style="margin:0 0 6px">Typed tag words: ${f.tt.map(t=>`"${esc(t)}"`).join(", ")}. Edit them in the Tag list.</p>`:""}${hiddenTagCount()?`<p class="hint" style="margin:0 0 6px;color:var(--now)">Hidden: ${[...ui.f.xtg,...ui.f.xmy.map(id=>(tagById(id)||{}).name).filter(Boolean),...ui.f.xtt.map(t=>`"${t}"`)].map(esc).join(", ")}. Change them in the Tag list.</p>`:""}<p class="hint" style="margin:0 0 6px">Tags, your tags and typed tag words combine using <b>${ui.tagAll?"Match all":"Match any"}</b>, set in the Tag list.</p><input id="tagq" type="search" placeholder="Search ${TAGLIST.length} tags" aria-label="Search tags" autocomplete="off"><div class="tags" id="ftags">${filterTagsHTML("")}</div></div>
+  <div class="fgroup"><h3>Tags</h3>${f.tt.length?`<p class="hint" style="margin:0 0 6px">Typed tag words: ${f.tt.map(t=>`"${esc(t)}"`).join(", ")}. Edit them in the Tag list.</p>`:""}${hiddenTagCount()?`<p class="hint" style="margin:0 0 6px;color:var(--now)">${hiddenTagCount()} hidden tag${hiddenTagCount()===1?"":"s"}${keptTagCount()?` and ${keptTagCount()} kept`:""}. Change them in the Tag list.</p>`:""}<p class="hint" style="margin:0 0 6px">Tags, your tags and typed tag words combine using <b>${ui.tagAll?"Match all":"Match any"}</b>, set in the Tag list.</p><input id="tagq" type="search" placeholder="Search ${TAGLIST.length} tags" aria-label="Search tags" autocomplete="off"><div class="tags" id="ftags">${filterTagsHTML("")}</div></div>
   ${grp("Level","lv",facet("lv").sort((a,b)=>a.v.localeCompare(b.v)))}
   ${grp("Audience","au",facet("au"))}
   ${grp("Venue","b",[...bld].sort((a,b)=>b[1]-a[1]).map(([v,c])=>({v,c})))}
@@ -1213,6 +1231,7 @@ document.addEventListener("click",e=>{
   if(d.share){shareSession(d.share);return}
   if(d.tset){setTagState(d.tset,d.tv,d.ts);$("#tagin").value="";render();return}
   if(d.tflip){setTagState(d.tflip,d.tv,tagState(d.tflip,d.tv)==="hide"?"show":"hide");render();return}
+  if(d.tcyc){cycleTag(d.tcyc,d.tv);render();return}
   if(d.ag){openAgenda(d.ag);return}
   if(d.urlstate){chooseURLState(d.urlstate);return}
   if(d.untag){const tg=tagById(d.untag),s=(byCode.get(d.code)||[])[0];
@@ -1242,6 +1261,7 @@ document.addEventListener("click",e=>{
     case "icsbtn":downloadICS();return;
     case "copycodes":copyCodes();return;
     case "showall":ui.onlyStar=ui.onlyTrk=ui.hidePast=false;ui.q="";$("#q").value="";FKEYS.forEach(k=>ui.f[k]=[]);render();return;
+    case "unhideall":XKEYS.forEach(k=>ui.f[k]=[]);render();return;
     case "xfercopy":copyTransfer();return;
     case "xfershare":shareTransfer();return;
     case "xfermerge":if(openSheet&&openSheet.data)mergeTransfer(openSheet.data);return;
@@ -1263,7 +1283,13 @@ $("#tTags").addEventListener("click",()=>{ui.tagPanel=!ui.tagPanel;render();if(u
 $("#tagin").addEventListener("input",renderTagList);
 $("#tagin").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addTerms(e.target.value)}else if(e.key==="Backspace"&&!e.target.value&&ui.f.tt.length){ui.f.tt.pop();render()}});
 $("#tagadd").addEventListener("click",()=>addTerms($("#tagin").value));
-$("#tagclr").addEventListener("click",()=>{["tg","my","tt",...XKEYS].forEach(k=>ui.f[k]=[]);$("#tagin").value="";render()});
+$("#tagclr").addEventListener("click",()=>{["tg","my","tt",...XKEYS,...KKEYS].forEach(k=>ui.f[k]=[]);$("#tagin").value="";render()});
+$("#taghideall").addEventListener("click",()=>{
+  ui.f.xtg=[NOTAGS,...TAGLIST.map(t=>t.v)].filter(v=>!ui.f.tg.includes(v)&&!ui.f.ktg.includes(v));
+  ui.f.xmy=my.tags.map(t=>t.id).filter(id=>!ui.f.my.includes(id)&&!ui.f.kmy.includes(id));
+  render();
+});
+$("#tagexp").addEventListener("click",()=>{ui.tagExpand=!ui.tagExpand;render()});
 $("#mShow").addEventListener("click",()=>{ui.tagHide=false;render()});
 $("#mHide").addEventListener("click",()=>{ui.tagHide=true;render()});
 $("#mAny").addEventListener("click",()=>{ui.tagAll=false;render()});

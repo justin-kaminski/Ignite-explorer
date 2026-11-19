@@ -6,7 +6,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- Standalone copy of Ignite Explorer. Generated from the claude.ai version; data loads from data.json. -->
-<link rel="stylesheet" href="fonts.css?v=652353dd67">
+<link rel="stylesheet" href="fonts.css?v=0730c5c8e6">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
 <title>Ignite Session Guide</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -302,6 +302,13 @@ main{flex:1;min-height:0;position:relative}
 .tchip.xchip .tflip{color:var(--now);font-weight:600}
 #mHide[aria-pressed="true"]{background:var(--now);color:#fff}
 .tagb.hidepick:hover{border-color:var(--now)}
+.tplist.big{max-height:min(52vh,520px)!important}
+.tagb.ls-show{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,var(--surface))}
+.tagb.ls-hide{border-color:var(--now);color:var(--now);text-decoration:line-through;background:color-mix(in srgb,var(--now) 8%,var(--surface))}
+.tagb.ls-keep{border-color:var(--c-lab);background:color-mix(in srgb,var(--c-lab) 18%,var(--surface));font-weight:600}
+.tchip.st-keep .tflip{color:var(--c-lab);font-weight:600}
+.tchip.st-hide{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--now) 70%,transparent)}
+.tchip.st-hide .tflip{color:var(--now);font-weight:600}
 code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:0 4px}
 .loading{display:grid;place-items:center;height:100%;color:var(--muted);font-family:var(--f-mono);font-size:12px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -348,6 +355,8 @@ code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);bor
       <div class="inline"><input id="tagin" type="search" placeholder="Type tags, e.g. github copilot, azure, ai" autocomplete="off" aria-label="Type tags to filter on"><button class="btn" id="tagadd">Add</button></div>
       <div class="seg" role="group" aria-label="What tapping a tag does"><button id="mShow" aria-pressed="true">Show only</button><button id="mHide" aria-pressed="false">Hide</button></div>
       <div class="seg" role="group" aria-label="How tags combine"><button id="mAny" aria-pressed="true">Match any</button><button id="mAll" aria-pressed="false">Match all</button></div>
+      <button class="tog" id="taghideall" hidden>Hide all</button>
+      <button class="tog" id="tagexp">Expand list</button>
       <button class="tog" id="tagclr">Clear tags</button>
     </div>
     <div class="tags" id="tagsel"></div>
@@ -365,6 +374,6 @@ code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);bor
 <div id="sheetroot"></div>
 <div id="toasts" aria-live="polite"></div>
 
-<script src="app.js?v=652353dd67"></script>
+<script src="app.js?v=0730c5c8e6"></script>
 </body>
 </html>
