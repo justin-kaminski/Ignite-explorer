@@ -355,7 +355,7 @@ function renderGrid(keepScroll){
     row.items.forEach(s=>{
       const st=my.stars.has(s.k),tk=isTrk(s),nt=my.notes.has(s.c),fc=flagCount(s);
       const flags=sessionTags(s).slice(0,3).map(t=>`<span class="tdot" style="--tg:${tagColor(t)}" title="${esc(t.name)}"></span>`).join("")+(st?`<span class="fstar">${ICON.star}</span>`:"")+(tk?`<span class="ffol">${ICON.user}</span>`:"")+(nt?`<span>${ICON.note}</span>`:"");
-      html+=`<button class="blk ${tclass(s.ty)} k-${s.kind}${s.cancelled?" cx":""}${st?" star":""}${tk?" trk":""}${FADED.has(s.k)?" faded":""}${statusClasses(s,n)}" data-k="${esc(s.k)}" style="left:${(s.s-t0)*ppm+1}px;width:${bw(s)}px;top:${lane.get(s.k)*lh+3}px;height:${lh-6}px" title="${esc(s.t)}">`
+      html+=`<button class="blk ${tclass(s.ty)} k-${s.kind}${s.cancelled?" cx":""}${st?" star":""}${tk?" trk":""}${!row.pin&&FADED.has(s.k)?" faded":""}${statusClasses(s,n)}" data-k="${esc(s.k)}" style="left:${(s.s-t0)*ppm+1}px;width:${bw(s)}px;top:${lane.get(s.k)*lh+3}px;height:${lh-6}px" title="${esc(s.t)}">`
         +(flags?`<span class="flags">${flags}</span>`:"")
         +(s.kind!=="inperson"||s.cancelled?`<span class="kline">${kindBadge(s)}${s.main?` streams ${esc(s.main.c)}`:""}</span>`:"")
         +`<span class="bt"${fc?` style="padding-right:${fc*13}px"`:""}>${esc(s.t)}</span><span class="bm">${fmtMinShort(s.s)}-${fmtMinShort(s.e)} ${esc(s.c)}</span>`
@@ -401,7 +401,7 @@ function cardHTML(s,n,extra){
   const spk=s.sp.map(id=>SPK.get(id)).filter(Boolean).map(p=>my.follow.has(p.id)?`<span class="f">${esc(p.n)}</span>`:esc(p.n)).join(", ");
   const when=s.day?`<span class="tm">${extra.showDay?esc(dayLabel(s.day).w)+" ":""}${fmtMinShort(s.s)}-${fmtMinShort(s.e)}</span>`:`<span class="tm">On demand</span>`;
   const tags=sessionTags(s).map(t=>`<span style="--tg:${tagColor(t)};display:inline-flex;align-items:center;gap:4px"><span class="tdot"></span>${esc(t.name)}</span>`).join("");
-  return `<div class="card ${tclass(s.ty)} k-${s.kind}${s.cancelled?" cx":""}${st?" star":""}${FADED.has(s.k)?" faded":""}${statusClasses(s,n)}" data-card="${esc(s.k)}"><button class="main" data-k="${esc(s.k)}"><span class="ct">${esc(s.t)}</span><span class="cm">${when}${kindBadge(s)}<span class="pill">${esc(s.ty)}</span><span>${esc(s.c)}</span><span>${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>${my.notes.has(s.c)?`<span>${ICON.note}</span>`:""}${tags}</span>${spk?`<span class="cs">${spk}</span>`:""}${extra.warn?`<span class="warn">${esc(extra.warn)}</span>`:""}</button><button class="starbtn" data-star="${esc(s.k)}" aria-pressed="${st}" aria-label="${st?"Unstar":"Star"} ${esc(s.t)}">${ICON.star}</button></div>`;
+  return `<div class="card ${tclass(s.ty)} k-${s.kind}${s.cancelled?" cx":""}${st?" star":""}${extra.fade&&FADED.has(s.k)?" faded":""}${statusClasses(s,n)}" data-card="${esc(s.k)}"><button class="main" data-k="${esc(s.k)}"><span class="ct">${esc(s.t)}</span><span class="cm">${when}${kindBadge(s)}<span class="pill">${esc(s.ty)}</span><span>${esc(s.c)}</span><span>${esc([shortB(s.b),s.r].filter(Boolean).join(", "))}</span>${my.notes.has(s.c)?`<span>${ICON.note}</span>`:""}${tags}</span>${spk?`<span class="cs">${spk}</span>`:""}${extra.warn?`<span class="warn">${esc(extra.warn)}</span>`:""}</button><button class="starbtn" data-star="${esc(s.k)}" aria-pressed="${st}" aria-label="${st?"Unstar":"Star"} ${esc(s.t)}">${ICON.star}</button></div>`;
 }
 function overlapMap(list){
   const m=new Map();
@@ -428,7 +428,7 @@ function renderList(){
     const slot=it.s;
     if(slot!==cur){cur=slot;const cnt=list.filter(x=>(x.day?x.s:-1)===slot).length,acnt=ag.filter(g=>g.s===slot).length;
       html+=`<div class="slot" data-slot="${slot}">${slot>=0?fmtMin(slot):"On demand and online only"}<small>${[cnt?`${cnt} session${cnt>1?"s":""}`:"",acnt?`${acnt} agenda`:""].filter(Boolean).join(", ")}</small></div>`}
-    if(it.ses){html+=cardHTML(it.ses,n);return}
+    if(it.ses){html+=cardHTML(it.ses,n,{fade:true});return}
     const g=it.ag,st=agStatus(g,n);
     html+=`<div class="card agcard${st==="past"?" past":st==="live"?" live":""}"><button class="main" data-ag="${esc(g.id)}"><span class="ct">${esc(g.t)}</span><span class="cm"><span class="tm">${fmtMinShort(g.s)}-${fmtMinShort(g.e)}</span><span class="kb kb-agenda">Agenda</span><span>${esc(g.g)}</span><span>${esc(agPlacesLabel(g))}</span></span></button></div>`;
   });
