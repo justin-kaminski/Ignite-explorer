@@ -6,7 +6,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- Standalone copy of Ignite Explorer. Generated from the claude.ai version; data loads from data.json. -->
-<link rel="stylesheet" href="fonts.css?v=b92f41aefe">
+<link rel="stylesheet" href="fonts.css?v=e191670ba7">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
 <title>Ignite Session Guide</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -289,6 +289,14 @@ main{flex:1;min-height:0;position:relative}
 @media (max-width:480px){.agrow{grid-template-columns:78px 1fr}}
 .filternote{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:color-mix(in srgb,var(--accent) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 50%,var(--line));border-radius:8px;padding:5px 6px 5px 10px;font-size:12.5px}
 .filternote span{flex:1;min-width:0}
+.kb-agenda{--kc:var(--c-lab);border-style:solid}
+.grow.agrowg{border-bottom:2px solid color-mix(in srgb,var(--c-lab) 60%,var(--line))}
+.grow.agrowg .rlabel{background:color-mix(in srgb,var(--c-lab) 12%,var(--surface))}
+.grow.agrowg .rlabel b{font-family:var(--f-display);font-size:15px;letter-spacing:.04em;text-transform:uppercase}
+.grow.agrowg .rlabel a.aglink{color:var(--focus);text-transform:none}
+.blk.agblk{--tc:var(--c-lab);background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--c-lab) 16%,var(--surface)) 0 10px,color-mix(in srgb,var(--c-lab) 10%,var(--surface)) 10px 20px)}
+.card.agcard{--tc:var(--c-lab);border-style:dashed;border-left-style:solid}
+.card.agcard.live{box-shadow:inset 3px 0 0 var(--now)}
 code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:0 4px}
 .loading{display:grid;place-items:center;height:100%;color:var(--muted);font-family:var(--f-mono);font-size:12px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -324,6 +332,7 @@ code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);bor
     <button class="tog" id="tTags" aria-pressed="false" aria-controls="tagpanel"><svg class="i" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/></svg>Tag list<span id="tagn"></span></button>
     <span id="mytagchips" style="display:contents"></span>
     <button class="mtag add" id="tagmgr">+ My tags</button>
+    <button class="tog" id="tAgenda" aria-pressed="true"><span class="sw" style="background:var(--c-lab)"></span>Agenda</button>
     <button class="tog" id="tKey" aria-pressed="true">Color key</button>
     <span class="status" id="status">Loading</span>
   </div>
@@ -350,6 +359,6 @@ code.k{font-family:var(--f-mono);font-size:11.5px;background:var(--surface2);bor
 <div id="sheetroot"></div>
 <div id="toasts" aria-live="polite"></div>
 
-<script src="app.js?v=b92f41aefe"></script>
+<script src="app.js?v=e191670ba7"></script>
 </body>
 </html>

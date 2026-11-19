@@ -58,10 +58,10 @@ const byTime=(a,b)=>(a.day||"z").localeCompare(b.day||"z")||(a.s||0)-(b.s||0)||a
 const FKEYS=["ty","kd","tp","lv","au","b","dl","tg","rec","my","tt"];
 const ui=(function(){
   const raw=LS("ig-ui")||{};
-  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,alerts:true,urlState:true,f:{}};
+  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,alerts:true,urlState:true,agenda:true,f:{}};
   ["view","day","q"].forEach(k=>{if(typeof raw[k]==="string")u[k]=raw[k]});
   if(!["guide","list","speakers","mine","info"].includes(u.view))u.view="guide";
-  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys","alerts","urlState"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
+  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys","alerts","urlState","agenda"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
   if([5,10,15,30].includes(raw.remLead))u.remLead=raw.remLead;
   if(raw.zv===3&&ZOOM.includes(raw.ppm))u.ppm=raw.ppm;
   const f=raw.f&&typeof raw.f==="object"?raw.f:{};
@@ -168,6 +168,7 @@ function renderChrome(n){
   if(ui.tagPanel&&showDays)renderTagPanel();
   renderFilterNote(showDays);
   $("#tKey").setAttribute("aria-pressed",ui.legend);
+  $("#tAgenda").setAttribute("aria-pressed",ui.agenda);
   $("#legend").hidden=!(ui.legend&&showDays);
   if(ui.legend&&showDays)renderLegend(n);
   ["grid","listv","spkv","minev","infov"].forEach(id=>$("#"+id).hidden=true);
@@ -204,6 +205,7 @@ function renderLegend(n){
    +`<span class="lk"><span class="ob" style="opacity:.45;box-shadow:inset 4px 0 0 var(--muted)"></span>Ended</span>`
    +`<span class="lk">${ICON.note}Has notes</span>`
    +`<span class="lsep"></span><span class="lh">Kind</span>`
+   +`<span class="lk"><span class="kb kb-agenda">Agenda</span>badge pickup, shuttles, food, Hub</span>`
    +`<span class="lk"><span class="kb kb-cancelled">Cancelled</span>by Microsoft</span>`
    +`<span class="lk"><span class="kb kb-overflow">Overflow</span>stream of another session</span>`
    +`<span class="lk"><span class="kb kb-online">Online only</span>broadcast, no seated room</span>`
@@ -273,11 +275,13 @@ function renderGrid(keepScroll){
   const list=M.filter(s=>s.day===ui.day);
   const pinned=dayAll.filter(s=>my.stars.has(s.k)&&!(ui.hidePast&&isPast(s,n)));
   if(!list.length&&!pinned.length){el.innerHTML=`<div class="empty"><b>No matches</b>No sessions on ${esc(dayLabel(ui.day).long)} match your search and filters. Other days may have matches; check the counts on the day buttons.</div>`;el._t0=null;return}
-  const t0=Math.floor(Math.min(...dayAll.map(s=>s.s))/60)*60, t1=Math.ceil(Math.max(...dayAll.map(s=>s.e))/60)*60;
+  const agToday=agendaFor(ui.day,n);
+  const t0=Math.floor(Math.min(...dayAll.map(s=>s.s),...agToday.map(g=>g.s))/60)*60, t1=Math.ceil(Math.max(...dayAll.map(s=>s.e),...agToday.map(g=>g.e))/60)*60;
   const ppm=ui.ppm, W=(t1-t0)*ppm;
   const rooms=new Map();
   list.forEach(s=>{const key=(s.b||"Online")+"|"+s.r;if(!rooms.has(key))rooms.set(key,{b:s.b||"Online",r:s.r,items:[]});rooms.get(key).items.push(s)});
   const rows=[...rooms.values()].sort(roomSort);
+  if(agToday.length)rows.unshift({agenda:true,b:"",r:"",items:agToday.slice()});
   if(pinned.length)rows.unshift({pin:true,b:"",r:"",items:pinned.slice()});
   const rowh=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--rowh"))||58;
   const bw=s=>Math.max(18,(s.e-s.s)*ppm-3);
@@ -288,6 +292,7 @@ function renderGrid(keepScroll){
   html+=`<div class="nowtick" id="nowtick" hidden></div></div></div>`;
   let lastB=null;
   rows.forEach(row=>{
+    if(row.agenda){html+=agendaRowHTML(row,t0,ppm,rowh,W,n);return}
     row.items.sort((a,b)=>a.s-b.s||a.e-b.e);
     const lane=new Map(),ends=[];
     row.items.forEach(s=>{let li=ends.findIndex(end=>end<=s.s);if(li<0){li=ends.length;ends.push(0)}ends[li]=s.e;lane.set(s.k,li)});
@@ -315,6 +320,19 @@ function renderGrid(keepScroll){
     const pin=(el.querySelector(".pinrow")||{}).offsetHeight||0;
     el.scrollLeft=prev.x;el.scrollTop=prev.y>0?Math.max(0,prev.y+pin-prev.pin):0;
   }
+}
+function agendaRowHTML(row,t0,ppm,rowh,W,n){
+  const items=row.items.slice().sort((a,b)=>a.s-b.s||b.e-a.e),lane=new Map(),ends=[];
+  items.forEach(g=>{let li=ends.findIndex(end=>end<=g.s);if(li<0){li=ends.length;ends.push(0)}ends[li]=g.e;lane.set(g.id,li)});
+  const bw=g=>Math.max(18,(g.e-g.s)*ppm-3);
+  const hOf=g=>8+Math.min(4,titleLines(g.t,Math.max(20,bw(g)-16)))*15+1+14+14+6;
+  const lh=Math.max(54,...items.map(hOf))+6,H=ends.length*lh;
+  let html=`<div class="grow agrowg" style="height:${H}px"><div class="rlabel"><b>Event agenda</b><span>${items.length} item${items.length===1?"":"s"} · <button class="linkbtn aglink" data-v="info">all info</button></span></div><div class="track" style="width:${W}px;--hh:${60*ppm}px;background-position:${-(t0%60)*ppm}px 0">`;
+  items.forEach(g=>{
+    const st=agStatus(g,n);
+    html+=`<button class="blk agblk${st==="past"?" past":st==="live"?" live":""}" data-ag="${esc(g.id)}" style="left:${(g.s-t0)*ppm+1}px;width:${bw(g)}px;top:${lane.get(g.id)*lh+3}px;height:${lh-6}px" title="${esc(g.t)}"><span class="bt">${esc(g.t)}</span><span class="bm">${fmtMinShort(g.s)}-${fmtMinShort(g.e)} · ${esc(g.g)}</span><span class="bs">${esc(agPlacesLabel(g))}</span></button>`;
+  });
+  return html+`</div></div>`;
 }
 function placeNow(n){
   const el=$("#grid"),line=$("#nowline"),tick=$("#nowtick");if(!line||el._t0==null)return;
@@ -344,18 +362,23 @@ function renderList(){
   const inDay=s=>ui.day==="od"?!s.day:s.day===ui.day;
   const list=M.filter(inDay).sort(byTime);
   const pinned=SES.filter(s=>inDay(s)&&my.stars.has(s.k)&&!(ui.hidePast&&isPast(s,n))).sort(byTime);
-  if(!list.length&&!pinned.length){el.innerHTML=`<div class="empty"><b>No matches</b>Try another day, or clear the search and filters.</div>`;return}
+  if(!list.length&&!pinned.length&&!(ui.day!=="od"&&agendaFor(ui.day,n).length)){el.innerHTML=`<div class="empty"><b>No matches</b>Try another day, or clear the search and filters.</div>`;return}
   let html=`<div class="list">`;
   if(pinned.length){
     const conf=overlapMap(pinned);
     html+=`<div class="slot pin">My schedule<small>${pinned.length} starred</small></div>`+pinned.map(s=>cardHTML(s,n,{warn:conf.has(s.k)?`Overlaps ${conf.get(s.k).join(", ")}`:""})).join("");
     if(!list.length)html+=`<p class="hint">No other sessions match your search and filters on this day.</p>`;
   }
+  const ag=ui.day==="od"?[]:agendaFor(ui.day,n);
+  const rowsL=[...ag.map(g=>({ag:g,s:g.s})),...list.map(x=>({ses:x,s:x.day?x.s:-1}))].sort((a,b)=>a.s-b.s||(a.ag?-1:1));
   let cur=null;
-  list.forEach(s=>{
-    const slot=s.day?s.s:-1;
-    if(slot!==cur){cur=slot;const cnt=list.filter(x=>(x.day?x.s:-1)===slot).length;html+=`<div class="slot" data-slot="${slot}">${s.day?fmtMin(slot):"On demand and online only"}<small>${cnt} session${cnt>1?"s":""}</small></div>`}
-    html+=cardHTML(s,n);
+  rowsL.forEach(it=>{
+    const slot=it.s;
+    if(slot!==cur){cur=slot;const cnt=list.filter(x=>(x.day?x.s:-1)===slot).length,acnt=ag.filter(g=>g.s===slot).length;
+      html+=`<div class="slot" data-slot="${slot}">${slot>=0?fmtMin(slot):"On demand and online only"}<small>${[cnt?`${cnt} session${cnt>1?"s":""}`:"",acnt?`${acnt} agenda`:""].filter(Boolean).join(", ")}</small></div>`}
+    if(it.ses){html+=cardHTML(it.ses,n);return}
+    const g=it.ag,st=agStatus(g,n);
+    html+=`<div class="card agcard${st==="past"?" past":st==="live"?" live":""}"><button class="main" data-ag="${esc(g.id)}"><span class="ct">${esc(g.t)}</span><span class="cm"><span class="tm">${fmtMinShort(g.s)}-${fmtMinShort(g.e)}</span><span class="kb kb-agenda">Agenda</span><span>${esc(g.g)}</span><span>${esc(agPlacesLabel(g))}</span></span></button></div>`;
   });
   el.innerHTML=html+`</div>`;
   // Jump to the current time once per day, unless starred sessions still to come are at the top.
@@ -691,6 +714,33 @@ document.addEventListener("change",e=>{
 });
 
 // ================= event info (agenda from Microsoft's venue map) =================
+let agCache={src:null,map:new Map()};
+function agendaGroups(day){
+  const A=(DATA&&Array.isArray(DATA.agenda))?DATA.agenda:[];
+  if(agCache.src!==A){agCache={src:A,map:new Map()}}
+  if(agCache.map.has(day))return agCache.map.get(day);
+  const out=[],idx=new Map();
+  A.filter(a=>a.day===day).forEach(a=>{
+    const title=a.g==="Food"?"Lunch and meals":a.t,key=title+"|"+a.s+"|"+a.e;
+    if(!idx.has(key)){const g={id:"ag-"+day+"-"+out.length,t:title,g:a.g,day,s:a.s,e:a.e,places:[]};idx.set(key,g);out.push(g)}
+    idx.get(key).places.push(a);
+  });
+  agCache.map.set(day,out);return out;
+}
+const agFind=id=>{const day=id.slice(3,13);return agendaGroups(day).find(g=>g.id===id)};
+// Agenda entries step aside while a search, filter or the Starred / Followed toggles narrow things down.
+const showAgendaHere=()=>ui.agenda&&ui.day!=="od"&&!ui.q&&!filterCount()&&!ui.onlyStar&&!ui.onlyTrk;
+function agendaFor(day,n){return showAgendaHere()?agendaGroups(day).filter(g=>!(ui.hidePast&&agStatus(g,n)==="past")):[]}
+function agPlacesLabel(g){return g.places.length===1?agPlace(g.places[0]):`${g.places.length} places`}
+function openAgenda(id){
+  const g=agFind(id);if(!g)return;
+  const body=()=>{const n=nowPT(),st=agStatus(g,n);
+    return `<div class="callout kc-main"><b>Event agenda.</b> From the Event Agenda in Microsoft's venue map. Times are Pacific and subject to change.</div>
+    <dl class="kv"><dt>When</dt><dd>${esc(dayLabel(g.day).long)}, ${fmtMin(g.s)} to ${fmtMin(g.e)} PT${st==="live"?` <b style="color:var(--now)">NOW</b>`:st==="past"?" (ended)":""}</dd><dt>Type</dt><dd>${esc(g.g)}</dd></dl>
+    <div><div class="sec" style="margin-top:0">Where<small>${g.places.length} place${g.places.length===1?"":"s"}</small></div><div class="agplaces" style="flex-direction:column;gap:8px;font-size:14px">${g.places.map(a=>agPlaceLink(a,(g.g==="Food"&&a.t!=="Lunch"?a.t+", ":"")+agPlace(a))).join("")}</div></div>
+    <div class="actions"><button class="btn" data-v="info">See all of ${esc(dayLabel(g.day).w)}'s event info</button></div>`};
+  showSheet(g.t,body(),{kind:"a",refresh(){refreshBody(body())}});
+}
 const AG_ORDER=["Badge pickup","Shuttles","Food","The Hub & Swag","Certifications","Receptions","Other"];
 const agPlace=a=>[a.b,a.r].filter(Boolean).join(", ")||"";
 const agStatus=(a,n)=>a.day<n.day||(a.day===n.day&&a.e<=n.min)?"past":a.day===n.day&&a.s<=n.min?"live":"";
@@ -773,6 +823,7 @@ function tick(){
   if(ui.hidePast&&!isInput(document.activeElement)&&!openSheet){render();return}
   placeNow(n);
   if(currentPane()==="infov"&&!isInput(document.activeElement)){const el=$("#infov"),y=el.scrollTop;renderInfo();el.scrollTop=y}
+  document.querySelectorAll("[data-ag]").forEach(el=>{const g=agFind(el.dataset.ag);if(!g)return;const st=agStatus(g,n),c=el.closest(".agcard")||el;c.classList.toggle("past",st==="past");c.classList.toggle("live",st==="live")});
   document.querySelectorAll("[data-card],.blk[data-k]").forEach(el=>{
     const s=byKey.get(el.dataset.card||el.dataset.k);if(!s)return;
     el.classList.toggle("past",isPast(s,n));el.classList.toggle("live",isLive(s,n));
@@ -1136,6 +1187,7 @@ document.addEventListener("click",e=>{
   if(d.star){toggleStar(d.star);return}
   if(d.fol){toggleFollow(d.fol);return}
   if(d.share){shareSession(d.share);return}
+  if(d.ag){openAgenda(d.ag);return}
   if(d.urlstate){chooseURLState(d.urlstate);return}
   if(d.untag){const tg=tagById(d.untag),s=(byCode.get(d.code)||[])[0];
     const autoHit=tg&&s&&ruleMatch(s,compileRule(tg.q));setManual(d.code,d.untag,autoHit?false:null);return}
@@ -1180,6 +1232,7 @@ $("#tTrk").addEventListener("click",()=>{ui.onlyTrk=!ui.onlyTrk;render()});
 $("#tStar").addEventListener("click",()=>{ui.onlyStar=!ui.onlyStar;render()});
 $("#tPast").addEventListener("click",()=>{ui.hidePast=!ui.hidePast;render()});
 $("#tKey").addEventListener("click",()=>{ui.legend=!ui.legend;render()});
+$("#tAgenda").addEventListener("click",()=>{ui.agenda=!ui.agenda;render()});
 $("#tTags").addEventListener("click",()=>{ui.tagPanel=!ui.tagPanel;render();if(ui.tagPanel)$("#tagin").focus()});
 $("#tagin").addEventListener("input",renderTagList);
 $("#tagin").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addTerms(e.target.value)}else if(e.key==="Backspace"&&!e.target.value&&ui.f.tt.length){ui.f.tt.pop();render()}});
