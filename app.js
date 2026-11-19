@@ -23,6 +23,7 @@ const TAGC=["--c-brk","--c-tt","--c-lab","--c-bc","--c-lt","--c-inv","--c-key","
 const ZOOM=[3,4,5,6,8,10,12];
 // Microsoft's venue map (wayfinding.event.microsoft.com) opens focused on a room when given its catalog location.
 const MAP_URL="https://wayfinding.event.microsoft.com/ignite";
+const campusMapLink=()=>MAP_URL+"?"+new URLSearchParams({npi:"hotels,restaurants,Pharmacies,thingstodo",tz:TZ}).toString();
 function mapLink(b,r,code){
   if(!b||b==="Online")return "";
   const q=new URLSearchParams({nto:r?`${b} | ${r}`:b,npi:"hotels,restaurants,Pharmacies,thingstodo",tz:TZ});
@@ -57,9 +58,9 @@ const byTime=(a,b)=>(a.day||"z").localeCompare(b.day||"z")||(a.s||0)-(b.s||0)||a
 const FKEYS=["ty","kd","tp","lv","au","b","dl","tg","rec","my","tt"];
 const ui=(function(){
   const raw=LS("ig-ui")||{};
-  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,alerts:true,f:{}};
+  const u={view:"guide",day:null,q:"",ppm:null,zv:3,onlyTrk:false,onlyStar:false,hidePast:false,tagAll:false,tagPanel:false,legend:true,rem:false,remSys:false,remLead:10,alerts:true,urlState:true,f:{}};
   ["view","day","q"].forEach(k=>{if(typeof raw[k]==="string")u[k]=raw[k]});
-  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys","alerts"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
+  ["onlyTrk","onlyStar","hidePast","tagAll","tagPanel","legend","rem","remSys","alerts","urlState"].forEach(k=>{if(typeof raw[k]==="boolean")u[k]=raw[k]});
   if([5,10,15,30].includes(raw.remLead))u.remLead=raw.remLead;
   if(raw.zv===3&&ZOOM.includes(raw.ppm))u.ppm=raw.ppm;
   const f=raw.f&&typeof raw.f==="object"?raw.f:{};
@@ -410,6 +411,56 @@ const GH_URL="https://justin-kaminski.github.io/Ignite-explorer/";
 const sysSupported=!IN_CLAUDE&&"Notification" in window&&window.isSecureContext;
 let swReg=null;
 const notified=(()=>{const v=LS("ig-notified");return v&&typeof v==="object"?v:{}})();
+// ================= data in the page address =================
+// GitHub version only (claude.ai syncs through the account). The part after "~" in the address holds the same
+// encoded data as a transfer link and is rewritten after every change, so the address itself is a save: copy or
+// bookmark it, open it anywhere. Nothing after "#" is ever sent to a server. If a link's data differs from what
+// this device already has, the person chooses what to keep, so opening someone else's link can't wipe their own.
+const URLSTATE=!IN_CLAUDE;
+let urlPayload="",urlWriteT=null;
+const splitHash=()=>{const h=(location.hash||"").replace(/^#/,""),i=h.indexOf("~");return i<0?{route:h,data:""}:{route:h.slice(0,i),data:h.slice(i+1)}};
+function setHash(route){
+  const data=URLSTATE&&ui.urlState&&urlPayload?"~"+urlPayload:"";
+  try{history.replaceState(null,"",location.pathname+location.search+"#"+route+data)}catch(e){}
+}
+function urlStateChanged(){
+  if(!URLSTATE||!ui.urlState)return;
+  clearTimeout(urlWriteT);
+  urlWriteT=setTimeout(async()=>{
+    urlPayload=await encodeState(currentState());
+    const r=splitHash().route;
+    setHash(/^(guide|list|speakers|mine|s-[A-Za-z0-9-]+)$/.test(r)?r:ui.view);
+  },400);
+}
+const sameState=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+function applyState(d,mode){
+  if(mode==="replace"){
+    my.stars=new Set(d.st);my.follow=new Set(d.fo.map(k=>ALIAS[k]||k));my.tags=d.tg.map(t=>Object.assign({},t));my.manual=JSON.parse(JSON.stringify(d.mn));
+    my.notes=new Map(Object.entries(d.nt));tagsChanged();store.prefsChanged();store.saveAllNotes();
+  }else mergeTransfer(d,true);
+}
+async function loadStateFromURL(){
+  if(!URLSTATE)return;
+  const {data}=splitHash();
+  if(!data||data===urlPayload)return;
+  let d;try{d=await readTransfer(data)}catch(e){notify({head:"Link data",title:"The saved data in this link couldn't be read",meta:"It may have been cut off. This device's data is unchanged.",tag:"url"});urlStateChanged();return}
+  ui.urlState=true;saveUI();
+  const here=currentState(),empty=!here.st.length&&!here.fo.length&&!here.tg.length&&!Object.keys(here.nt).length;
+  const norm=x=>({v:1,st:[...x.st].sort(),fo:[...x.fo].map(k=>ALIAS[k]||k).sort(),tg:x.tg,mn:x.mn,nt:Object.fromEntries(Object.entries(x.nt).sort((a,b)=>a[0]<b[0]?-1:1))});
+  if(sameState(norm(d),norm(here))){urlPayload=data;return}
+  if(empty){applyState(d,"replace");urlPayload=data;render();notify({head:"Loaded",title:"Your saved data was loaded from this link",meta:xferSummary({st:d.st.length,fo:d.fo.length,tg:d.tg.length,nt:Object.keys(d.nt).length}),tag:"url"});return}
+  showSheet("This link has saved data",`<p style="margin:0">The link you opened carries ${esc(xferSummary({st:d.st.length,fo:d.fo.length,tg:d.tg.length,nt:Object.keys(d.nt).length}))}.</p>
+  <p style="margin:0">This device has ${esc(xferSummary({st:here.st.length,fo:here.fo.length,tg:here.tg.length,nt:Object.keys(here.nt).length}))}.</p>
+  <div class="actions"><button class="btn primary" data-urlstate="replace">Use the link's data</button><button class="btn" data-urlstate="merge">Merge both</button><button class="btn" data-urlstate="keep">Keep this device's</button></div>
+  <p class="hint" style="margin:0">Use the link's data if this is your own link from another device. Keep this device's if someone sent you their link by mistake.</p>`,{kind:"u",data:d,onClose(){urlStateChanged()}});
+}
+function chooseURLState(mode){
+  const d=openSheet&&openSheet.data;if(!d)return;
+  if(mode!=="keep")applyState(d,mode);
+  closeSheet();render();urlStateChanged();
+  if(mode!=="keep")notify({head:mode==="replace"?"Loaded":"Merged",title:mode==="replace"?"This device now uses the link's data":"The link's data was merged in",tag:"url"});
+}
+
 // ================= transfer link =================
 // Packs stars, follows, tags and notes into the part of a link after "#", which browsers never send to the server.
 // The receiving device shows what is in it and merges only when the person confirms.
@@ -418,6 +469,8 @@ function transferCard(){
   return `<div class="remcard"><div class="sec" style="margin:4px 0 2px">Move to another device</div>
   <p class="hint" style="margin:0">Copy a link that carries your stars, followed speakers, tags and notes, send it to yourself, and open it on your other device${IN_CLAUDE?" (it opens the GitHub version of this guide)":""}. You'll be asked before anything is merged. Anyone with the link can read your notes, so only send it to yourself.</p>
   <div class="actions"><button class="btn" id="xfercopy">Copy transfer link</button>${!IN_CLAUDE&&navigator.share?`<button class="btn" id="xfershare">${ICON.share}Send to myself</button>`:""}</div>
+  ${URLSTATE?`<label class="chk"><input type="checkbox" id="urlstateon" ${ui.urlState?"checked":""}> Keep my data in this page's address, so copying or bookmarking the address saves everything</label>
+  <p class="hint" style="margin:0">With this on, the address in your browser carries your notes. Use the Share button to send a session to someone, not the address bar.</p>`:""}
   <div class="impstat" id="xferstat" role="status"></div></div>`;
 }
 const b64u={
@@ -425,12 +478,16 @@ const b64u={
   dec:str=>{const b=atob(str.replace(/-/g,"+").replace(/_/g,"/")+"===".slice((str.length+3)%4));const out=new Uint8Array(b.length);for(let i=0;i<b.length;i++)out[i]=b.charCodeAt(i);return out}
 };
 async function pipeBytes(bytes,stream){const r=new Response(new Blob([bytes]).stream().pipeThrough(stream));return new Uint8Array(await r.arrayBuffer())}
-async function buildTransferLink(){
-  const data={v:1,st:[...my.stars],fo:[...my.follow],tg:my.tags,mn:my.manual,nt:Object.fromEntries(my.notes)};
+const currentState=()=>({v:1,st:[...my.stars].sort(),fo:[...my.follow].sort(),tg:my.tags,mn:my.manual,nt:Object.fromEntries([...my.notes].sort((a,b)=>a[0]<b[0]?-1:1))});
+async function encodeState(data){
   let bytes=new TextEncoder().encode(JSON.stringify(data)),z="j";
   if(typeof CompressionStream==="function"){try{bytes=await pipeBytes(bytes,new CompressionStream("deflate-raw"));z="z"}catch(e){}}
+  return z+b64u.enc(bytes);
+}
+async function buildTransferLink(){
+  const data=currentState();
   const base=IN_CLAUDE?GH_URL:location.origin+location.pathname;
-  return {url:`${base}#xfer-${z}${b64u.enc(bytes)}`,counts:{st:data.st.length,fo:data.fo.length,tg:data.tg.length,nt:Object.keys(data.nt).length}};
+  return {url:`${base}#xfer-${await encodeState(data)}`,counts:{st:data.st.length,fo:data.fo.length,tg:data.tg.length,nt:Object.keys(data.nt).length}};
 }
 const xferSummary=c=>`${c.st} starred, ${c.fo} followed speaker${c.fo===1?"":"s"}, ${c.tg} tag${c.tg===1?"":"s"}, ${c.nt} note${c.nt===1?"":"s"}`;
 async function copyTransfer(){
@@ -456,7 +513,7 @@ async function readTransfer(payload){
   const notes={};if(d.nt&&typeof d.nt==="object")Object.entries(d.nt).slice(0,XFER_MAX).forEach(([c,t])=>{if(typeof c==="string"&&c.length<=40&&typeof t==="string"&&t)notes[c]=t.slice(0,20000)});
   return {st:strs(d.st,XFER_MAX,40),fo:strs(d.fo,XFER_MAX,80),tg:tags,mn:manual,nt:notes};
 }
-function clearXferHash(){try{history.replaceState(null,"",location.pathname+location.search+"#mine")}catch(e){}}
+function clearXferHash(){setHash("mine")}
 async function openTransfer(payload){
   let d;
   try{d=await readTransfer(payload)}
@@ -469,7 +526,7 @@ async function openTransfer(payload){
   <p class="hint" style="margin:0">Merging only adds. Nothing on this device is removed.</p>
   <div class="actions"><button class="btn primary" id="xfermerge">Merge into this device</button><button class="btn" data-close="1">Cancel</button></div>`,{kind:"x",data:d,onClose:clearXferHash});
 }
-function mergeTransfer(d){
+function mergeTransfer(d,quiet){
   d.st.forEach(k=>my.stars.add(k));
   d.fo.forEach(k=>my.follow.add(ALIAS[k]||k));
   const idMap={};
@@ -477,6 +534,7 @@ function mergeTransfer(d){
   Object.entries(d.mn).forEach(([c,m])=>{const cur=Object.assign({},my.manual[c]||{});Object.entries(m).forEach(([id,b])=>{const nid=idMap[id]||id;if(!(nid in cur))cur[nid]=b});my.manual[c]=cur});
   tagsChanged();store.prefsChanged();
   Object.entries(d.nt).forEach(([c,t])=>{const cur=my.notes.get(c);if(!cur)store.setNote(c,t);else if(cur!==t&&!cur.includes(t))store.setNote(c,cur+"\n\n--- from your other device ---\n"+t)});
+  if(quiet)return;
   closeSheet();ui.view="mine";clearXferHash();render({keepScroll:false});
   notify({head:"Merged",title:"Your data from the other device is merged",meta:xferSummary({st:d.st.length,fo:d.fo.length,tg:d.tg.length,nt:Object.keys(d.nt).length}),tag:"xfer"});
 }
@@ -609,6 +667,7 @@ document.addEventListener("change",e=>{
   const t=e.target;
   if(t.id==="remon"){ui.rem=t.checked;saveUI();if(ui.rem){checkReminders(nowPT());remStatus(`Reminders on: ${ui.remLead} minutes before each starred session while this page is open.`)}else remStatus("Reminders off.")}
   if(t.id==="remlead"){ui.remLead=+t.value;saveUI();checkReminders(nowPT())}
+  if(t.id==="urlstateon"){ui.urlState=t.checked;saveUI();if(ui.urlState)urlStateChanged();else{urlPayload="";setHash(splitHash().route||ui.view)}}
   if(t.id==="alerton"){ui.alerts=t.checked;saveUI();remStatus(ui.alerts?"Change alerts on.":"Change alerts off. Changes still appear in the Schedule changes list.")}
   if(t.id==="remsys")setSys(t.checked);
 });
@@ -670,7 +729,7 @@ function closeSheet(){
   const s=openSheet;openSheet=null;
   if(s.onClose)s.onClose();
   $("#sheetroot").innerHTML="";
-  if(/^#s-/.test(location.hash))try{history.replaceState(null,"",location.pathname+location.search+"#"+ui.view)}catch(e){}
+  if(/^#s-/.test(location.hash))setHash(ui.view);
   if(pendingData){const d=pendingData;pendingData=null;applyData(d)}
   // Prefer a match outside the pinned My schedule row so focus lands where the person was, and never scroll to it.
   const all=s.returnTo?[...document.querySelectorAll(s.returnTo)]:[];
@@ -692,7 +751,7 @@ function sessionBody(s){
   const when=s.day?`${dayLabel(s.day).long}, ${fmtMin(s.s)} to ${fmtMin(s.e)} PT (${s.e-s.s} min)`:"On demand / online";
   const others=(byCode.get(s.c)||[]).filter(x=>x.k!==s.k);
   const vid=/^https:\/\//i.test(s.vid||"")?s.vid:"";
-  let h=kindCallout(s)+`<div class="actions"><button class="btn${st?" primary":""}" data-star="${esc(s.k)}" aria-pressed="${st}">${ICON.star}${st?"Starred":"Star"}</button><a class="btn" href="https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}" target="_blank" rel="noopener">${ICON.ext}Official page</a>${s.day&&mapLink(s.b,s.r,s.c)?`<a class="btn" href="${esc(mapLink(s.b,s.r,s.c))}" target="_blank" rel="noopener" title="Open this room on Microsoft's venue map">${ICON.map}Map</a>`:""}<button class="btn" data-share="${esc(s.k)}">${ICON.share}Share</button>${vid?`<a class="btn" href="${esc(vid)}" target="_blank" rel="noopener">${ICON.play}Recording</a>`:""}</div><div class="impstat" id="sharestat" role="status"></div>`;
+  let h=kindCallout(s)+`<div class="actions"><button class="btn${st?" primary":""}" data-star="${esc(s.k)}" aria-pressed="${st}">${ICON.star}${st?"Starred":"Star"}</button><a class="btn" href="https://ignite.microsoft.com/en-US/sessions/${encodeURIComponent(s.id)}" target="_blank" rel="noopener">${ICON.ext}Official page</a>${s.day&&mapLink(s.b,s.r,s.c)?`<a class="btn" href="${esc(campusMapLink())}" target="_blank" rel="noopener" title="Open Microsoft's venue map at the campus view">${ICON.map}Map</a><a class="btn" href="${esc(mapLink(s.b,s.r,s.c))}" target="_blank" rel="noopener" title="Open this room on Microsoft's venue map">${ICON.map}Room</a>`:""}<button class="btn" data-share="${esc(s.k)}">${ICON.share}Share</button>${vid?`<a class="btn" href="${esc(vid)}" target="_blank" rel="noopener">${ICON.play}Recording</a>`:""}</div><div class="impstat" id="sharestat" role="status"></div>`;
   h+=`<dl class="kv"><dt>When</dt><dd>${esc(when)}${isLive(s,n)?` <b style="color:var(--now)">LIVE NOW</b>`:""}</dd><dt>Where</dt><dd>${esc([s.b,s.r].filter(Boolean).join(", ")||"Online")}</dd><dt>Code</dt><dd>${esc(s.c)}</dd><dt>Type</dt><dd><span class="pill ${tclass(s.ty)}">${esc(s.ty)}</span></dd>`
     +(s.lv.length?`<dt>Level</dt><dd>${esc(s.lv.join(", "))}</dd>`:"")+(s.tp.length?`<dt>Topic</dt><dd>${esc(s.tp.join(", "))}</dd>`:"")+(s.au.length?`<dt>For</dt><dd>${esc(s.au.join(", "))}</dd>`:"")
     +`<dt>Format</dt><dd>${esc(s.dl.join(", "))}${s.rec?", recorded":", not recorded"}${s.seat?", "+esc(s.seat.toLowerCase()):""}</dd>`
@@ -1013,6 +1072,7 @@ document.addEventListener("click",e=>{
   if(d.star){toggleStar(d.star);return}
   if(d.fol){toggleFollow(d.fol);return}
   if(d.share){shareSession(d.share);return}
+  if(d.urlstate){chooseURLState(d.urlstate);return}
   if(d.untag){const tg=tagById(d.untag),s=(byCode.get(d.code)||[])[0];
     const autoHit=tg&&s&&ruleMatch(s,compileRule(tg.q));setManual(d.code,d.untag,autoHit?false:null);return}
   if(d.retag){setManual(d.code,d.retag,null);return}
@@ -1030,7 +1090,7 @@ document.addEventListener("click",e=>{
   if(d.fclear){FKEYS.forEach(k=>ui.f[k]=[]);softRender();return}
   if(d.import){openImport();return}
   if(d.d){ui.day=d.d;render();if(ui.view==="guide")scrollToNow();return}
-  if(d.v){location.hash=d.v;return}
+  if(d.v){location.hash=d.v+(URLSTATE&&ui.urlState&&urlPayload?"~"+urlPayload:"");return}
   switch(t.id){
     case "impread":readScreenshots();return;
     case "impstop":if(impCtl)impCtl.abort();return;
@@ -1101,7 +1161,8 @@ function revealSession(s){
 }
 function route(){
   if(openSheet){const o=openSheet;openSheet=null;if(o.onClose)o.onClose();$("#sheetroot").innerHTML=""}   // a new link replaces any open details
-  const v=(location.hash||"").replace("#","");
+  const v=splitHash().route;
+  if(URLSTATE&&splitHash().data&&splitHash().data!==urlPayload)setTimeout(loadStateFromURL,0);
   const x=v.match(/^xfer-([jz][A-Za-z0-9_-]+)$/);
   if(x&&!IN_CLAUDE){ui.view="mine";render({keepScroll:false});openTransfer(x[1]);return}
   const m=v.match(/^s-([A-Za-z0-9-]+)$/);
@@ -1216,8 +1277,9 @@ const store=(function(){
   }
   return {
     init,
-    prefsChanged(){dirtyPrefs=true;saveLocal();flushPrefs()},
-    setNote(c,text){if(text)my.notes.set(c,text);else my.notes.delete(c);dirtyNotes[c]=true;saveLocal();return flushNote(c)}
+    prefsChanged(){dirtyPrefs=true;saveLocal();flushPrefs();urlStateChanged()},
+    setNote(c,text){if(text)my.notes.set(c,text);else my.notes.delete(c);dirtyNotes[c]=true;saveLocal();urlStateChanged();return flushNote(c)},
+    saveAllNotes(){saveLocal();urlStateChanged()}
   };
 })();
 
@@ -1279,6 +1341,7 @@ store.init().then(()=>{if(DATA)softRender()});
 initSample();
 fetch("data.json").then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(d=>{
   prep(d);route();checkReminders(nowPT());
+  if(URLSTATE&&ui.urlState&&!splitHash().data)urlStateChanged();
   if(ui.remSys&&sysSupported&&Notification.permission==="granted")ensureSW();
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{lineCache.clear();softRender()});
 }).catch(err=>{const ld=$("#loading");if(ld)ld.textContent="Couldn't load the session catalog ("+err.message+"). Reload the page to try again."});
